@@ -12,6 +12,8 @@ class Deal(ArbitrageBase):
     name: str
     csf_price_usd: float
     csroi_steam_price_usd: float
+    csf_price_eur: float = 0.0
+    csroi_steam_price_eur: float = 0.0
     csroi_ratio: float
     multiplier: float
     steam_price: SteamPrice | None = None
