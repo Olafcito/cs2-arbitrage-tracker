@@ -150,11 +150,12 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
 
     item = session.items[index]
     rate = fetch_exchange_rate()
+    market_hash_name = f"{item.name} ({item.wear})"
 
-    csf_usd = csfloat_fetch(item.name, min_float=item.float_value)
+    csf_usd = csfloat_fetch(market_hash_name, min_float=item.float_value)
     csf_eur = csf_usd * rate if csf_usd is not None else item.csf_price_eur
 
-    steam = fetch_price_overview(item.name)
+    steam = fetch_price_overview(market_hash_name)
     steam_eur = steam.lowest_price_eur if steam.lowest_price_eur is not None else item.steam_price_eur
 
     synced_item = item.model_copy(update={

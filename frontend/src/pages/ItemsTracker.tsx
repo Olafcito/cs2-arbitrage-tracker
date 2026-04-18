@@ -120,6 +120,12 @@ export default function ItemsTracker() {
 
   return (
     <div>
+      <div className="mb-4 rounded border border-zinc-700 bg-zinc-900 px-3 py-2.5 text-xs text-zinc-400 leading-relaxed">
+        <span className="font-semibold text-zinc-200">Items Tracker</span> — track and monitor arbitrage for any CS2 item.
+        Enter the exact Steam market hash name (e.g. <span className="text-zinc-300 font-mono">AK-47 | Redline (Field-Tested)</span>).
+        Prices are fetched directly from the <span className="text-zinc-300">CSFloat API</span> and <span className="text-zinc-300">Steam Market</span> — no dependency on CSROI.
+        CSROI data is only used in the <span className="text-zinc-300">Cases</span> section.
+      </div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-sm font-bold text-zinc-100">Items Tracker</h1>
         <button
