@@ -1,7 +1,5 @@
 """CSFloat API client — fetches live listing prices."""
 
-from __future__ import annotations
-
 import requests
 
 from src.config import CSFLOAT_API_KEY, CSFLOAT_BASE_URL

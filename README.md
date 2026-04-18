@@ -51,10 +51,12 @@ uv run python -m src.main
 ```
 
 ### 2. Frontend (React)
-
+```bash
+# First time only
+npm install
+```
 ```bash
 cd frontend
-npm install        # first time only
 npm run dev
 # → http://localhost:5173
 ```
