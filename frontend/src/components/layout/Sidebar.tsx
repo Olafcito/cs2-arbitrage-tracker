@@ -3,6 +3,7 @@ import {
   BarChart2,
   Box,
   Calculator,
+  FolderOpen,
   LayoutDashboard,
   TrendingDown,
 } from "lucide-react";
@@ -12,6 +13,7 @@ const links = [
   { to: "/items", label: "Items", icon: Box },
   { to: "/cases", label: "Cases", icon: BarChart2 },
   { to: "/deals", label: "Deals", icon: TrendingDown },
+  { to: "/groups", label: "Groups", icon: FolderOpen },
   { to: "/scenarios", label: "Scenarios", icon: Calculator },
 ];
 

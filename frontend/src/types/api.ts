@@ -107,3 +107,20 @@ export interface SavedScenario {
 export interface ExchangeRate {
   rate: number;
 }
+
+export interface ItemGroup {
+  id: string;
+  name: string;
+  item_names: string[];
+  created_at: string;
+}
+
+export interface GroupInput {
+  name: string;
+  item_names?: string[];
+}
+
+export interface GroupPatch {
+  name?: string;
+  item_names?: string[];
+}
