@@ -10,7 +10,7 @@ from src.config import CSROI_MARKET_RATIOS_URL, STEAM_FEE_DIVISOR
 from src.models.csroi import CsroiDealItem
 from src.models.deal import Deal
 from src.services.steam import fetch_price_overview
-from src.utils import compute_multiplier
+from src.utils import compute_multiplier, fetch_exchange_rate
 
 
 def fetch_deals() -> list[CsroiDealItem]:
@@ -45,6 +45,7 @@ def _liquidity_label(volume: int | None) -> str:
 def scan_deals(max_ratio: float = 0.60) -> list[Deal]:
     """Fetch CSFloat deals from CSROI and return those below max_ratio."""
     raw_deals = fetch_deals()
+    rate = fetch_exchange_rate()
 
     deals: list[Deal] = []
     for item in raw_deals:
@@ -54,6 +55,8 @@ def scan_deals(max_ratio: float = 0.60) -> list[Deal]:
             name=item.name,
             csf_price_usd=item.csf_price_usd,
             csroi_steam_price_usd=item.steam_price_usd,
+            csf_price_eur=item.csf_price_usd * rate,
+            csroi_steam_price_eur=item.steam_price_usd * rate,
             csroi_ratio=item.ratio,
             multiplier=compute_multiplier(item.steam_price_usd, item.csf_price_usd),
         ))
@@ -78,7 +81,7 @@ def verify_deals(
 
             if result.lowest_price_eur is not None:
                 steam_net = result.lowest_price_eur / STEAM_FEE_DIVISOR
-                deal.multiplier = steam_net / (deal.csf_price_usd * 1.028) if deal.csf_price_usd > 0 else 0.0
+                deal.multiplier = steam_net / (deal.csf_price_eur * 1.028) if deal.csf_price_eur > 0 else 0.0
         except Exception:
             pass
 

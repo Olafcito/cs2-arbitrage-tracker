@@ -21,6 +21,25 @@ MAX_REQUESTS_PER_MINUTE = 20
 _request_times: deque[float] = deque(maxlen=MAX_REQUESTS_PER_MINUTE)
 
 
+class SteamRateLimitError(Exception):
+    """Raised when Steam returns an HTML throttle page instead of JSON."""
+
+
+def get_rate_limit_status() -> dict:
+    """Return current rate limit state without blocking."""
+    now = time.time()
+    recent = [t for t in _request_times if now - t < 60]
+    retry_after = None
+    if len(recent) >= MAX_REQUESTS_PER_MINUTE and recent:
+        oldest = min(recent)
+        retry_after = round(max(0.0, 60.0 - (now - oldest)), 1)
+    return {
+        "requests_in_window": len(recent),
+        "capacity": MAX_REQUESTS_PER_MINUTE,
+        "retry_after_seconds": retry_after,
+    }
+
+
 def _wait_for_rate_limit() -> None:
     """Block until we can make a request within the rate limit."""
     now = time.time()
@@ -33,7 +52,11 @@ def _wait_for_rate_limit() -> None:
 
 
 def _parse_steam_price(raw: str | None) -> float | None:
-    """Parse a Steam price string like '1,23EUR' or 'EUR1.23' into a float."""
+    """Parse a Steam EUR price string like '1,23EUR' or 'EUR1.23' into a float.
+
+    Steam EUR prices use comma as decimal separator (e.g. "1,23 EUR").
+    The comma is converted to a dot before extraction.
+    """
     if not raw:
         return None
     m = _PRICE_RE.search(raw.replace(",", "."))
@@ -44,7 +67,7 @@ def fetch_price_overview(market_hash_name: str) -> SteamPrice:
     """Call Steam priceoverview for a single item.
 
     Rate-limited to 20 requests per minute automatically.
-    Returns a SteamPrice model directly.
+    Raises SteamRateLimitError if Steam returns an HTML throttle page.
     """
     _wait_for_rate_limit()
 
@@ -53,6 +76,11 @@ def fetch_price_overview(market_hash_name: str) -> SteamPrice:
     )
     resp = requests.get(url, timeout=10)
     resp.raise_for_status()
+
+    content_type = resp.headers.get("content-type", "")
+    if "text/html" in content_type or resp.text.strip().startswith("<"):
+        raise SteamRateLimitError("Steam rate limit hit — retry in 60s")
+
     data = resp.json()
 
     return SteamPrice(

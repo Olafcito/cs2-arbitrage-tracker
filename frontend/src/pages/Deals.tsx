@@ -36,7 +36,7 @@ export default function Deals() {
           className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100 text-xs transition-colors disabled:opacity-50"
         >
           <RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />
-          Refresh
+          Sync CSROI
         </button>
       </div>
 
@@ -104,60 +104,55 @@ export default function Deals() {
               <tr className="border-b border-zinc-800 bg-zinc-900">
                 <th className="px-2 py-2 text-left text-zinc-400 font-medium">#</th>
                 <th className="px-2 py-2 text-left text-zinc-400 font-medium">Name</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSF $</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSROI Steam $</th>
+                <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSF EUR</th>
+                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Steam EUR</th>
                 <th className="px-2 py-2 text-right text-zinc-400 font-medium">Ratio</th>
                 <th className="px-2 py-2 text-right text-zinc-400 font-medium">Mult</th>
-                {verify && (
-                  <>
-                    <th className="px-2 py-2 text-right text-zinc-400 font-medium">Low EUR</th>
-                    <th className="px-2 py-2 text-right text-zinc-400 font-medium">Med EUR</th>
-                    <th className="px-2 py-2 text-right text-zinc-400 font-medium">Vol</th>
-                  </>
-                )}
+                {verify && <th className="px-2 py-2 text-right text-zinc-400 font-medium">Vol</th>}
                 <th className="px-2 py-2 text-zinc-400 font-medium">Liquidity</th>
                 {verify && <th className="px-2 py-2 text-zinc-400 font-medium">Verified</th>}
               </tr>
             </thead>
             <tbody>
-              {data.map((deal, i) => (
-                <tr
-                  key={deal.name}
-                  className={[
-                    "border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors",
-                    i % 2 === 1 ? "bg-zinc-900/30" : "",
-                  ].join(" ")}
-                >
-                  <td className="px-2 py-1.5 text-zinc-600">{i + 1}</td>
-                  <td className="px-2 py-1.5 text-left text-zinc-200 max-w-[200px] truncate">{deal.name}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.usd(deal.csf_price_usd)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.usd(deal.csroi_steam_price_usd)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.ratio(deal.csroi_ratio)}</td>
-                  <td className={`px-2 py-1.5 text-right font-medium ${multiplierClass(deal.multiplier)}`}>
-                    {fmt.mult(deal.multiplier)}
-                  </td>
-                  {verify && (
-                    <>
-                      <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(deal.steam_price?.lowest_price_eur)}</td>
-                      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(deal.steam_price?.median_price_eur)}</td>
-                      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.int(deal.steam_price?.volume_24h)}</td>
-                    </>
-                  )}
-                  <td className="px-2 py-1.5">
-                    <Badge
-                      label={deal.liquidity}
-                      className={liquidityBadgeClass(deal.liquidity)}
-                    />
-                  </td>
-                  {verify && (
-                    <td className="px-2 py-1.5 text-center">
-                      <span className={deal.verified ? liquidityClass("high") : "text-zinc-600"}>
-                        {deal.verified ? "✓" : "—"}
-                      </span>
+              {data.map((deal, i) => {
+                const steamEur = deal.verified && deal.steam_price?.lowest_price_eur != null
+                  ? deal.steam_price.lowest_price_eur
+                  : deal.csroi_steam_price_eur;
+                return (
+                  <tr
+                    key={deal.name}
+                    className={[
+                      "border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors",
+                      i % 2 === 1 ? "bg-zinc-900/30" : "",
+                    ].join(" ")}
+                  >
+                    <td className="px-2 py-1.5 text-zinc-600">{i + 1}</td>
+                    <td className="px-2 py-1.5 text-left text-zinc-200 max-w-[200px] truncate">{deal.name}</td>
+                    <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(deal.csf_price_eur)}</td>
+                    <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(steamEur)}</td>
+                    <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.ratio(deal.csroi_ratio)}</td>
+                    <td className={`px-2 py-1.5 text-right font-medium ${multiplierClass(deal.multiplier)}`}>
+                      {fmt.mult(deal.multiplier)}
                     </td>
-                  )}
-                </tr>
-              ))}
+                    {verify && (
+                      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.int(deal.steam_price?.volume_24h)}</td>
+                    )}
+                    <td className="px-2 py-1.5">
+                      <Badge
+                        label={deal.liquidity}
+                        className={liquidityBadgeClass(deal.liquidity)}
+                      />
+                    </td>
+                    {verify && (
+                      <td className="px-2 py-1.5 text-center">
+                        <span className={deal.verified ? liquidityClass("high") : "text-zinc-600"}>
+                          {deal.verified ? "✓" : "—"}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

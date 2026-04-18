@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, RefreshCw } from "lucide-react";
 import { useCases } from "../hooks/useCases";
 import { useAddItem } from "../hooks/useItems";
 import Spinner from "../components/ui/Spinner";
@@ -40,7 +40,7 @@ export default function Cases() {
   const [filter, setFilter] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("multiplier");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const { data: cases, isLoading, error } = useCases();
+  const { data: cases, isLoading, isFetching, error, refetch } = useCases();
 
   const toggleSort = (col: SortCol) => {
     if (col === sortCol) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -71,9 +71,19 @@ export default function Cases() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-sm font-bold text-zinc-100">Cases</h1>
-        {cases && (
-          <span className="text-xs text-zinc-500">{filtered.length} / {cases.length} cases</span>
-        )}
+        <div className="flex items-center gap-3">
+          {cases && (
+            <span className="text-xs text-zinc-500">{filtered.length} / {cases.length} cases</span>
+          )}
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100 text-xs transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={11} className={isFetching ? "animate-spin" : ""} />
+            Sync CSROI
+          </button>
+        </div>
       </div>
 
       <input
