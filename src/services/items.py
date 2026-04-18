@@ -25,40 +25,25 @@ def _load() -> list[ArbitrageItem]:
 def _save(items: list[ArbitrageItem]) -> None:
     _ITEMS_FILE.parent.mkdir(exist_ok=True)
     payload = [item.model_dump() for item in items]
-    _ITEMS_FILE.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    _ITEMS_FILE.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
 
 
 def add_item(name: str) -> ArbitrageItem:
     """Add an item to track.
 
-    Resolves CSFloat price from CSROI (cases then deals),
-    fetches Steam price, computes arbitrage, and persists.
+    Resolves CSFloat price: first tries CSROI (cases then deals) for extra
+    metadata, then falls back to a direct CSFloat API lookup for any item.
+    Fetches Steam price, computes arbitrage, and persists.
 
-    Raises ValueError if CSFloat price cannot be resolved.
+    Raises ValueError if CSFloat price cannot be resolved from any source.
     """
     case = find_case_by_name(name)
     deal = None
+    item_type: CaseType | SkinType
+
     if case is not None:
         csf_price_usd = case.csf_price_usd
         steam_price_usd = case.steam_price_usd
-    else:
-        deal = find_deal_by_name(name)
-        if deal is not None:
-            csf_price_usd = deal.csf_price_usd
-            steam_price_usd = deal.steam_price_usd
-        else:
-            raise ValueError(
-                f"CSFloat price not available for '{name}'. "
-                "Ensure the item exists in CSROI cases or deals."
-            )
-
-    steam_price = fetch_price_overview(name)
-    rate = fetch_exchange_rate()
-
-    if steam_price.lowest_price_eur is not None and rate > 0:
-        steam_price_usd = steam_price.lowest_price_eur / rate
-
-    if case is not None:
         item_type = CaseType(
             collection_id=case.collection_id,
             collection_type=case.collection_type,
@@ -68,7 +53,25 @@ def add_item(name: str) -> ArbitrageItem:
             profit_prob=case.profit_prob,
         )
     else:
+        deal = find_deal_by_name(name)
+        if deal is not None:
+            csf_price_usd = deal.csf_price_usd
+            steam_price_usd = deal.steam_price_usd
+        else:
+            csf_price_usd = csfloat_fetch(name)
+            if csf_price_usd is None:
+                raise ValueError(
+                    f"CSFloat price not available for '{name}'. "
+                    "Check that the name matches the Steam market hash name exactly."
+                )
+            steam_price_usd = 0.0
         item_type = SkinType()
+
+    steam_price = fetch_price_overview(name)
+    rate = fetch_exchange_rate()
+
+    if steam_price.lowest_price_eur is not None and rate > 0:
+        steam_price_usd = steam_price.lowest_price_eur / rate
 
     item = build_arbitrage_item(
         name=name,
@@ -77,7 +80,7 @@ def add_item(name: str) -> ArbitrageItem:
         rate=rate,
         item_type=item_type,
         steam_price=steam_price,
-        price_source="csroi",
+        price_source="markets" if case is None and deal is None else "csroi",
     )
 
     items = _load()
