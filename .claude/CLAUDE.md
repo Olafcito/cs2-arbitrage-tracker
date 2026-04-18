@@ -26,6 +26,11 @@ src/
     └── scenario.py      # Buy order computation + save/load
 ```
 
+## Assistant behavior rules
+
+- **Never mention AI/LLM attribution**: Do not reference Claude, Claude Code, or any AI tool in code comments, commit messages, PR descriptions, or documentation.
+- **Always update README**: Any change that adds endpoints, changes run commands, modifies env vars, or affects data storage must be reflected in README.md before committing.
+
 ## Key conventions
 
 - **No raw dicts**: Always use typed Pydantic models. Use model_dump() for serialization
