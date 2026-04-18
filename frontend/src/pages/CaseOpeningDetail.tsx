@@ -246,7 +246,7 @@ export default function CaseOpeningDetail() {
           <input
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
-            placeholder="AK-47 | Redline (Field-Tested)"
+            placeholder="AK-47 | Redline"
             className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-64"
           />
         </div>

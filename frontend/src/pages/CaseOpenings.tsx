@@ -1,14 +1,24 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Trash2 } from "lucide-react";
+import { Trash2, Package, TrendingUp, ChevronRight } from "lucide-react";
 import { useCaseOpenings, useCreateCaseOpening, useDeleteCaseOpening } from "../hooks/useCaseOpenings";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import { fmt } from "../utils/format";
 
 function pct(n: number | null) {
-  if (n === null || n === undefined) return "—";
+  if (n === null || n === undefined) return null;
   return `${(n * 100).toFixed(1)}%`;
+}
+
+function RoiBadge({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span className="text-[10px] text-zinc-500 uppercase tracking-wide">{label}</span>
+      <span className="text-sm font-semibold text-emerald-400">{value}</span>
+    </div>
+  );
 }
 
 export default function CaseOpenings() {
@@ -36,7 +46,7 @@ export default function CaseOpenings() {
     <div>
       <h1 className="text-sm font-bold text-zinc-100 mb-4">Case Openings</h1>
 
-      <form onSubmit={handleCreate} className="flex flex-wrap gap-2 mb-4 items-end">
+      <form onSubmit={handleCreate} className="flex flex-wrap gap-2 mb-6 items-end">
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-zinc-500">Session name</label>
           <input
@@ -96,54 +106,58 @@ export default function CaseOpenings() {
         <p className="text-zinc-600 text-xs mt-4">No sessions yet. Create one above.</p>
       )}
 
-      {(sessions ?? []).length > 0 && (
-        <div className="overflow-x-auto rounded border border-zinc-800">
-          <table className="w-full border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-900">
-                <th className="px-2 py-2 text-left text-zinc-400 font-medium">Name</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Date</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Items</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Unbox €</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSF ROI</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Steam ROI</th>
-                <th className="px-2 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {(sessions ?? []).map((s, i) => (
-                <tr
-                  key={s.id}
-                  className={[
-                    "border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors",
-                    i % 2 === 1 ? "bg-zinc-900/30" : "",
-                  ].join(" ")}
-                >
-                  <td className="px-2 py-1.5">
-                    <Link to={`/case-openings/${s.id}`} className="text-zinc-200 hover:text-emerald-400 transition-colors">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {(sessions ?? []).map((s) => {
+          const csfRoi = pct(s.csf_roi);
+          const steamRoi = pct(s.steam_roi);
+          const hasRoi = csfRoi || steamRoi;
+          return (
+            <div key={s.id} className="group relative rounded-xl border border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/60 transition-all duration-200 overflow-hidden">
+              <Link to={`/case-openings/${s.id}`} className="block p-4">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1 min-w-0 pr-2">
+                    <h2 className="text-sm font-semibold text-zinc-100 truncate group-hover:text-white transition-colors">
                       {s.name}
-                    </Link>
-                  </td>
-                  <td className="px-2 py-1.5 text-right text-zinc-400">{s.date}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{s.item_count}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(s.unbox_price)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{pct(s.csf_roi)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{pct(s.steam_roi)}</td>
-                  <td className="px-2 py-1.5 text-center">
-                    <button
-                      onClick={() => deleteSession.mutate(s.id)}
-                      disabled={deleteSession.isPending}
-                      className="p-1 text-zinc-600 hover:text-red-400 disabled:opacity-40 transition-colors"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </h2>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">{s.date}</p>
+                  </div>
+                  <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 shrink-0 mt-0.5 transition-colors" />
+                </div>
+
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Package size={12} />
+                    <span className="text-xs">{s.item_count} item{s.item_count !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <TrendingUp size={12} />
+                    <span className="text-xs">{fmt.eur(s.unbox_price)} / unbox</span>
+                  </div>
+                </div>
+
+                {hasRoi ? (
+                  <div className="flex gap-4 pt-3 border-t border-zinc-800">
+                    <RoiBadge label="CSF ROI" value={csfRoi} />
+                    <RoiBadge label="Steam ROI" value={steamRoi} />
+                  </div>
+                ) : (
+                  <div className="pt-3 border-t border-zinc-800">
+                    <span className="text-[11px] text-zinc-600">No prices synced yet</span>
+                  </div>
+                )}
+              </Link>
+
+              <button
+                onClick={(e) => { e.preventDefault(); deleteSession.mutate(s.id); }}
+                disabled={deleteSession.isPending}
+                className="absolute top-3 right-8 p-1 text-zinc-700 hover:text-red-400 disabled:opacity-40 transition-colors opacity-0 group-hover:opacity-100"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
