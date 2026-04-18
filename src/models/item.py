@@ -1,8 +1,7 @@
 """Domain models for tracked arbitrage items."""
 
-from __future__ import annotations
-
 import urllib.parse
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, computed_field
@@ -70,6 +69,8 @@ class ArbitrageItem(ArbitrageBase):
 
     # Metadata
     updated_at: str
+    last_synced_at: datetime | None = None
+    price_source: Literal["csroi", "markets"] = "csroi"
 
     @computed_field
     @property

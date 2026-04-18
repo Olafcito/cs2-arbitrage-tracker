@@ -34,6 +34,8 @@ export interface ArbitrageItem {
   steam_price: SteamPrice | null;
   item_type: ItemType | null;
   updated_at: string;
+  last_synced_at: string | null;
+  price_source: "csroi" | "markets";
   market_hash_name: string;
 }
 
@@ -104,4 +106,76 @@ export interface SavedScenario {
 
 export interface ExchangeRate {
   rate: number;
+}
+
+export interface ItemGroup {
+  id: string;
+  name: string;
+  item_names: string[];
+  created_at: string;
+}
+
+export interface GroupInput {
+  name: string;
+  item_names?: string[];
+}
+
+export interface GroupPatch {
+  name?: string;
+  item_names?: string[];
+}
+
+export interface CaseOpeningItem {
+  name: string;
+  wear: string;
+  float_value: number | null;
+  csf_price_eur: number | null;
+  steam_price_eur: number | null;
+  last_synced_at: string | null;
+}
+
+export interface CaseOpening {
+  id: string;
+  name: string;
+  date: string;
+  unbox_price: number;
+  multiplier: number;
+  items: CaseOpeningItem[];
+  created_at: string;
+  csf_roi: number | null;
+  steam_roi: number | null;
+  csf_roi_multiplied: number | null;
+  total_csf_value: number | null;
+  total_steam_net: number | null;
+}
+
+export interface CaseOpeningSummary {
+  id: string;
+  name: string;
+  date: string;
+  item_count: number;
+  unbox_price: number;
+  multiplier: number;
+  csf_roi: number | null;
+  steam_roi: number | null;
+}
+
+export interface CaseOpeningCreate {
+  name: string;
+  date: string;
+  unbox_price: number;
+  multiplier?: number;
+}
+
+export interface CaseOpeningPatch {
+  name?: string;
+  date?: string;
+  unbox_price?: number;
+  multiplier?: number;
+}
+
+export interface CaseOpeningItemInput {
+  name: string;
+  wear: string;
+  float_value?: number | null;
 }

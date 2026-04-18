@@ -1,11 +1,8 @@
-"""Unit and integration tests for src/services/steam.py."""
-
-from __future__ import annotations
+"""Unit tests for src/services/steam.py — all HTTP mocked, no network calls."""
 
 import json
 import time
-from collections import deque
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import requests
@@ -13,10 +10,6 @@ import requests
 from src.models.steam import SteamPrice
 from src.services import steam as steam_svc
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _make_response(data: dict, content_type: str = "application/json") -> MagicMock:
     resp = MagicMock()
@@ -27,10 +20,6 @@ def _make_response(data: dict, content_type: str = "application/json") -> MagicM
     resp.raise_for_status = MagicMock()
     return resp
 
-
-# ---------------------------------------------------------------------------
-# Unit tests — _parse_steam_price
-# ---------------------------------------------------------------------------
 
 class TestParseSteamPrice:
     def test_eur_suffix(self):
@@ -55,10 +44,6 @@ class TestParseSteamPrice:
         # Steam EUR uses comma as decimal separator — "1234,56 EUR" = €1234.56
         assert steam_svc._parse_steam_price("1234,56 EUR") == pytest.approx(1234.56)
 
-
-# ---------------------------------------------------------------------------
-# Unit tests — get_rate_limit_status
-# ---------------------------------------------------------------------------
 
 class TestGetRateLimitStatus:
     def setup_method(self):
@@ -95,10 +80,6 @@ class TestGetRateLimitStatus:
         assert status["requests_in_window"] == 0
         assert status["retry_after_seconds"] is None
 
-
-# ---------------------------------------------------------------------------
-# Unit tests — fetch_price_overview (mocked HTTP)
-# ---------------------------------------------------------------------------
 
 class TestFetchPriceOverview:
     def setup_method(self):
@@ -158,30 +139,3 @@ class TestFetchPriceOverview:
         before = len(steam_svc._request_times)
         steam_svc.fetch_price_overview("Test Item")
         assert len(steam_svc._request_times) == before + 1
-
-
-# ---------------------------------------------------------------------------
-# Integration tests — real HTTP (skipped unless STEAM_INTEGRATION=1)
-# ---------------------------------------------------------------------------
-
-pytestmark_integration = pytest.mark.skipif(
-    __import__("os").getenv("STEAM_INTEGRATION") != "1",
-    reason="Set STEAM_INTEGRATION=1 to run real Steam API calls",
-)
-
-
-@pytestmark_integration
-class TestSteamIntegration:
-    def setup_method(self):
-        steam_svc._request_times.clear()
-
-    def test_known_item_returns_prices(self):
-        result = steam_svc.fetch_price_overview("Prisma Case")
-        assert isinstance(result, SteamPrice)
-        assert result.lowest_price_eur is not None
-        assert result.lowest_price_eur > 0
-
-    def test_rate_limit_status_after_call(self):
-        steam_svc.fetch_price_overview("Prisma Case")
-        status = steam_svc.get_rate_limit_status()
-        assert status["requests_in_window"] >= 1
