@@ -8,3 +8,9 @@ export const addItem = (name: string) =>
 
 export const deleteItem = (name: string) =>
   api.delete(`/items/${encodeURIComponent(name)}`);
+
+export const syncItem = (name: string) =>
+  api.post<ArbitrageItem>(`/items/${encodeURIComponent(name)}/sync`, {});
+
+export const syncAllItems = () =>
+  api.post<{ message: string; item_count: number }>("/items/sync-all", {});

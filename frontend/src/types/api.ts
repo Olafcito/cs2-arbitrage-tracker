@@ -34,6 +34,8 @@ export interface ArbitrageItem {
   steam_price: SteamPrice | null;
   item_type: ItemType | null;
   updated_at: string;
+  last_synced_at: string | null;
+  price_source: "csroi" | "markets";
   market_hash_name: string;
 }
 

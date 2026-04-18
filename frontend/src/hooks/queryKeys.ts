@@ -7,4 +7,5 @@ export const queryKeys = {
   scenarios: ["scenarios"] as const,
   scenario: (filename: string) => ["scenario", filename] as const,
   exchangeRate: ["exchangeRate"] as const,
+  rateLimitStatus: ["rateLimitStatus"] as const,
 };

@@ -1,13 +1,13 @@
 """Service: tracked item CRUD with automatic price resolution."""
 
-from __future__ import annotations
-
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from src.config import PROJECT_DIR
 from src.models.item import ArbitrageItem, CaseType, SkinType
 from src.services.cases import find_case_by_name
+from src.services.csfloat import fetch_lowest_price as csfloat_fetch
 from src.services.deals import find_deal_by_name
 from src.services.steam import fetch_price_overview
 from src.utils import build_arbitrage_item, fetch_exchange_rate
@@ -49,18 +49,15 @@ def add_item(name: str) -> ArbitrageItem:
         else:
             raise ValueError(
                 f"CSFloat price not available for '{name}'. "
-                "Ensure the item exists in CSROI cases or deals. "
-                "CSFloat API integration coming soon."
+                "Ensure the item exists in CSROI cases or deals."
             )
 
-    # Fetch live Steam price — prefer it over CSROI's steam price
     steam_price = fetch_price_overview(name)
     rate = fetch_exchange_rate()
 
     if steam_price.lowest_price_eur is not None and rate > 0:
         steam_price_usd = steam_price.lowest_price_eur / rate
 
-    # Build item type
     if case is not None:
         item_type = CaseType(
             collection_id=case.collection_id,
@@ -80,12 +77,54 @@ def add_item(name: str) -> ArbitrageItem:
         rate=rate,
         item_type=item_type,
         steam_price=steam_price,
+        price_source="csroi",
     )
 
-    # Persist
     items = _load()
     items = [i for i in items if i.name.lower() != name.lower()]
     items.append(item)
+    _save(items)
+
+    return item
+
+
+def sync_item(name: str) -> ArbitrageItem:
+    """Sync a tracked item with live prices from CSFloat and Steam.
+
+    Raises ValueError if the item is not tracked.
+    Raises SteamRateLimitError if Steam is throttling.
+    """
+    existing = get_tracked_item(name)
+    if existing is None:
+        raise ValueError(f"Item not tracked: '{name}'")
+
+    csf_price_usd = csfloat_fetch(existing.name)
+    if csf_price_usd is None:
+        csf_price_usd = existing.csf_price_usd
+
+    steam_price = fetch_price_overview(existing.name)
+    rate = fetch_exchange_rate()
+
+    steam_price_usd = (
+        steam_price.lowest_price_eur / rate
+        if steam_price.lowest_price_eur is not None and rate > 0
+        else existing.steam_price_usd
+    )
+
+    item = build_arbitrage_item(
+        name=existing.name,
+        csf_price_usd=csf_price_usd,
+        steam_price_usd=steam_price_usd,
+        rate=rate,
+        item_type=existing.item_type,
+        steam_price=steam_price,
+        last_synced_at=datetime.now(timezone.utc),
+        price_source="markets",
+        updated_at=existing.updated_at,
+    )
+
+    items = _load()
+    items = [i if i.name.lower() != name.lower() else item for i in items]
     _save(items)
 
     return item
