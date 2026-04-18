@@ -141,20 +141,25 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | GET | `/cases/{id}` | Single case |
 | POST | `/items` | Add tracked item |
 | GET | `/items` | List tracked items |
+| GET | `/items/{name}` | Get tracked item by name |
 | DELETE | `/items/{name}` | Remove item |
 | POST | `/items/{name}/sync` | Sync live prices for one item |
 | POST | `/items/sync-all` | Sync all items in background (202) |
 | GET | `/deals` | CSFloat deals below ratio |
 | GET | `/deals?verify=true` | Deals verified against Steam (slow) |
 | GET | `/lookup?name=...` | Steam Market price lookup |
+| GET | `/csfloat/listings` | Cheapest CSFloat listing for an item |
 | POST | `/scenarios` | Compute buy-order scenario |
 | GET | `/scenarios` | List saved scenarios |
+| GET | `/scenarios/{file}` | Load saved scenario |
 | GET | `/exchange-rate` | Live USD → EUR rate |
 | GET | `/rate-limit` | Current Steam rate limit status |
 | GET | `/groups` | List item groups |
 | POST | `/groups` | Create item group |
+| GET | `/groups/{id}` | Get group |
 | PATCH | `/groups/{id}` | Update group |
 | DELETE | `/groups/{id}` | Delete group |
+| POST | `/groups/{id}/sync` | Sync all items in group (202) |
 | GET | `/case-openings` | List case opening sessions |
 | POST | `/case-openings` | Create session |
 | GET | `/case-openings/{id}` | Session detail with ROI stats |
@@ -162,6 +167,8 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | DELETE | `/case-openings/{id}` | Delete session |
 | POST | `/case-openings/{id}/items` | Add item to session |
 | DELETE | `/case-openings/{id}/items/{index}` | Remove item from session |
+| POST | `/case-openings/{id}/items/{index}/sync` | Sync individual item prices |
+| POST | `/case-openings/{id}/sync` | Sync all items in session (202) |
 
 ---
 
@@ -172,4 +179,4 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | `data/items.json` | Tracked arbitrage items |
 | `data/scenarios/` | Saved buy-order scenarios |
 | `data/groups.json` | Item groups |
-| `data/case_openings.json` | Case opening sessions |
+| `data/case_openings/{id}.json` | Case opening sessions (one file per session) |
