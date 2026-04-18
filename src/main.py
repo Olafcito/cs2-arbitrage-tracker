@@ -3,7 +3,7 @@
 from fastapi import APIRouter, FastAPI
 
 from src.utils import fetch_exchange_rate
-from src.routers import cases, csfloat, deals, groups, items, lookup, scenarios
+from src.routers import case_openings, cases, csfloat, deals, groups, items, lookup, scenarios
 from src.services.steam import get_rate_limit_status
 
 app = FastAPI(
@@ -12,6 +12,7 @@ app = FastAPI(
     version="0.4.0",
 )
 
+app.include_router(case_openings.router)
 app.include_router(cases.router)
 app.include_router(csfloat.router)
 app.include_router(deals.router)
