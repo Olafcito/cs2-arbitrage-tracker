@@ -29,3 +29,12 @@ STEAM_PRICE_OVERVIEW_URL = (
     "https://steamcommunity.com/market/priceoverview/"
     "?appid=730&market_hash_name={name}&currency=3"
 )
+
+# ---------------------------------------------------------------------------
+# CSFloat
+# ---------------------------------------------------------------------------
+
+import os  # noqa: E402
+
+CSFLOAT_API_KEY: str = os.getenv("CSFLOAT_API_KEY", "")
+CSFLOAT_BASE_URL: str = "https://csfloat.com/api/v1"

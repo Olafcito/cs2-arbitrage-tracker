@@ -41,6 +41,8 @@ export interface Deal {
   name: string;
   csf_price_usd: number;
   csroi_steam_price_usd: number;
+  csf_price_eur: number;
+  csroi_steam_price_eur: number;
   csroi_ratio: number;
   multiplier: number;
   steam_price: SteamPrice | null;

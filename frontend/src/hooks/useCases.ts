@@ -7,5 +7,6 @@ export function useCases(names?: string[]) {
     queryKey: queryKeys.cases(names),
     queryFn: () => getCases(names),
     staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 }
