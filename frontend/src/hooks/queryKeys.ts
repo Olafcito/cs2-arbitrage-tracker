@@ -9,4 +9,6 @@ export const queryKeys = {
   exchangeRate: ["exchangeRate"] as const,
   rateLimitStatus: ["rateLimitStatus"] as const,
   groups: ["groups"] as const,
+  caseOpenings: ["caseOpenings"] as const,
+  caseOpening: (id: string) => ["caseOpening", id] as const,
 };
