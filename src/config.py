@@ -1,6 +1,11 @@
 """Constants and configuration for the CS2 arbitrage tracker."""
 
+import os
 from pathlib import Path
+
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Paths
@@ -33,8 +38,6 @@ STEAM_PRICE_OVERVIEW_URL = (
 # ---------------------------------------------------------------------------
 # CSFloat
 # ---------------------------------------------------------------------------
-
-import os  # noqa: E402
 
 CSFLOAT_API_KEY: str = os.getenv("CSFLOAT_API_KEY", "")
 CSFLOAT_BASE_URL: str = "https://csfloat.com/api/v1"
