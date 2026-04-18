@@ -1,7 +1,5 @@
 """Steam Market API — priceoverview lookups with rate limiting."""
 
-from __future__ import annotations
-
 import re
 import time
 from collections import deque

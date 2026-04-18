@@ -4,6 +4,9 @@ import Dashboard from "./pages/Dashboard";
 import ItemsTracker from "./pages/ItemsTracker";
 import Cases from "./pages/Cases";
 import Deals from "./pages/Deals";
+import Groups from "./pages/Groups";
+import CaseOpenings from "./pages/CaseOpenings";
+import CaseOpeningDetail from "./pages/CaseOpeningDetail";
 import ScenarioBuilder from "./pages/ScenarioBuilder";
 import ScenarioDetail from "./pages/ScenarioDetail";
 
@@ -17,6 +20,9 @@ export default function App() {
           <Route path="items" element={<ItemsTracker />} />
           <Route path="cases" element={<Cases />} />
           <Route path="deals" element={<Deals />} />
+          <Route path="groups" element={<Groups />} />
+          <Route path="case-openings" element={<CaseOpenings />} />
+          <Route path="case-openings/:id" element={<CaseOpeningDetail />} />
           <Route path="scenarios" element={<ScenarioBuilder />} />
           <Route path="scenarios/:filename" element={<ScenarioDetail />} />
         </Route>
