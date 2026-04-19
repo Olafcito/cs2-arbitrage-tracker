@@ -133,11 +133,11 @@ export default function ItemsTracker() {
         <h1 className="text-sm font-bold text-zinc-100">Items Tracker</h1>
         <button
           onClick={handleSyncAll}
-          disabled={syncAll.isPending}
+          disabled={syncAll.isSyncing}
           className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 disabled:opacity-40 transition-colors"
         >
-          <RefreshCw size={11} className={syncAll.isPending ? "animate-spin" : ""} />
-          {syncAll.isPending ? "Syncing…" : "Sync All"}
+          <RefreshCw size={11} className={syncAll.isSyncing ? "animate-spin" : ""} />
+          {syncAll.isSyncing ? "Syncing…" : "Sync All"}
         </button>
       </div>
       <AddItemForm />
