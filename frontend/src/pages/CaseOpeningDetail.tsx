@@ -8,24 +8,19 @@ import {
   useSyncCaseOpening,
   useSyncCaseOpeningItem,
   useUpdateCaseOpening,
+  useUpdateCaseOpeningItem,
   useUpdateCaseOpeningItemStatus,
 } from "../hooks/useCaseOpenings";
+import { useCurrency } from "../context/CurrencyContext";
+import { useExchangeRate } from "../hooks/useExchangeRate";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import StatCard from "../components/ui/StatCard";
 import { fmt, relativeTime } from "../utils/format";
 import type { CaseOpeningItem, ItemMarketplace, ItemStatus } from "../types/api";
 
-const WEAR_OPTIONS = [
-  "Factory New",
-  "Minimal Wear",
-  "Field-Tested",
-  "Well-Worn",
-  "Battle-Scarred",
-];
-
+const WEAR_OPTIONS = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
 const STATUS_OPTIONS: ItemStatus[] = ["opened", "for_sale", "delisted", "sold"];
-
 
 type SortCol =
   | "name" | "wear" | "float_value"
@@ -70,22 +65,151 @@ function pct(n: number | null | undefined, digits = 1) {
   return `${(n * 100).toFixed(digits)}%`;
 }
 
-function SortTh({
-  label, col, active, dir, onToggle,
-}: {
+function SortTh({ label, col, active, dir, onToggle, align = "text-right" }: {
   label: string; col: SortCol; active: SortCol; dir: "asc" | "desc";
-  onToggle: (c: SortCol) => void;
+  onToggle: (c: SortCol) => void; align?: string;
 }) {
   return (
     <th
       onClick={() => onToggle(col)}
-      className="px-2 py-2 text-right text-zinc-400 font-medium cursor-pointer hover:text-zinc-200 select-none whitespace-nowrap"
+      className={`px-2 py-2 ${align} text-zinc-400 font-medium cursor-pointer hover:text-zinc-200 select-none whitespace-nowrap`}
     >
       {label}
       <span className={`ml-1 ${col === active ? "text-emerald-400" : "text-zinc-700"}`}>
         {col === active ? (dir === "asc" ? "↑" : "↓") : "↕"}
       </span>
     </th>
+  );
+}
+
+function ItemEditModal({ item, sessionId, onClose }: {
+  item: CaseOpeningItem; sessionId: string; onClose: () => void;
+}) {
+  const [name, setName] = useState(item.name);
+  const [wear, setWear] = useState(item.wear);
+  const [floatVal, setFloatVal] = useState(item.float_value?.toString() ?? "");
+  const [status, setStatus] = useState<ItemStatus>(item.status);
+  const [marketplace, setMarketplace] = useState<ItemMarketplace | "">(item.marketplace ?? "");
+
+  const updateItem = useUpdateCaseOpeningItem(sessionId);
+  const updateStatus = useUpdateCaseOpeningItemStatus(sessionId);
+  const isPending = updateItem.isPending || updateStatus.isPending;
+
+  const propsChanged = name !== item.name || wear !== item.wear ||
+    (floatVal !== "" ? parseFloat(floatVal) !== item.float_value : item.float_value != null);
+  const statusChanged = status !== item.status || (marketplace || null) !== (item.marketplace ?? null);
+
+  const handleSave = async () => {
+    try {
+      if (propsChanged) {
+        await updateItem.mutateAsync({
+          itemId: item.id,
+          patch: {
+            ...(name !== item.name ? { name } : {}),
+            ...(wear !== item.wear ? { wear } : {}),
+            ...(floatVal !== "" ? { float_value: parseFloat(floatVal) } : {}),
+          },
+        });
+      }
+      if (statusChanged) {
+        await updateStatus.mutateAsync({
+          itemId: item.id,
+          status,
+          marketplace: marketplace || null,
+        });
+      }
+      onClose();
+    } catch {
+      // errors shown via mutation state
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl p-5 w-80 flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-zinc-100">Edit Item</h3>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Name</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Wear</label>
+          <select
+            value={wear}
+            onChange={(e) => setWear(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            {WEAR_OPTIONS.map((w) => <option key={w}>{w}</option>)}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Float</label>
+          <input
+            type="number" step="0.0001" min="0" max="1"
+            value={floatVal}
+            onChange={(e) => setFloatVal(e.target.value)}
+            placeholder="optional"
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+          />
+          {(name !== item.name || wear !== item.wear) && (
+            <p className="text-[10px] text-amber-500">Name/wear changed — prices will be cleared, re-sync after saving.</p>
+          )}
+        </div>
+
+        <div className="border-t border-zinc-800 pt-2 flex gap-2">
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[11px] text-zinc-500">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as ItemStatus)}
+              className={`bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-zinc-500 ${statusColor(status)}`}
+            >
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 flex-1">
+            <label className="text-[11px] text-zinc-500">Marketplace</label>
+            <select
+              value={marketplace}
+              onChange={(e) => setMarketplace(e.target.value as ItemMarketplace | "")}
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-400 focus:outline-none focus:border-zinc-500"
+            >
+              <option value="">—</option>
+              <option value="steam">Steam</option>
+              <option value="csfloat">CSFloat</option>
+            </select>
+          </div>
+        </div>
+
+        {(updateItem.isError || updateStatus.isError) && (
+          <p className="text-xs text-red-400">Save failed — check backend logs.</p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={handleSave}
+            disabled={isPending || (!propsChanged && !statusChanged)}
+            className="flex-1 px-3 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50 transition-colors"
+          >
+            {isPending ? "Saving…" : "Save"}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -116,94 +240,43 @@ function ItemDeleteButton({ sessionId, index }: { sessionId: string; index: numb
   );
 }
 
-function StatusCell({ item, sessionId }: { item: CaseOpeningItem; sessionId: string }) {
-  const [open, setOpen] = useState(false);
-  const [draftStatus, setDraftStatus] = useState<ItemStatus>(item.status);
-  const [draftMarket, setDraftMarket] = useState<ItemMarketplace | "">(item.marketplace ?? "");
-  const { mutate, isPending } = useUpdateCaseOpeningItemStatus(sessionId);
-
-  const handleOpen = () => {
-    setDraftStatus(item.status);
-    setDraftMarket(item.marketplace ?? "");
-    setOpen(true);
-  };
-
-  const handleAccept = () => {
-    mutate(
-      { itemId: item.id, status: draftStatus, marketplace: draftMarket || null },
-      { onSuccess: () => setOpen(false) },
-    );
-  };
-
-  return (
-    <td className="px-2 py-1.5 relative">
-      <button
-        onClick={handleOpen}
-        className={`text-[11px] hover:underline ${statusColor(item.status)}`}
-      >
-        {item.status.replace("_", " ")}
-        {item.marketplace && <span className="text-zinc-500 ml-1">({item.marketplace})</span>}
-      </button>
-      {open && (
-        <div className="absolute z-20 left-0 top-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-3 min-w-[170px] flex flex-col gap-2">
-          <select
-            value={draftStatus}
-            onChange={(e) => setDraftStatus(e.target.value as ItemStatus)}
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-          >
-            {STATUS_OPTIONS.map((s) => (
-              <option key={s} value={s}>{s.replace("_", " ")}</option>
-            ))}
-          </select>
-          <select
-            value={draftMarket}
-            onChange={(e) => setDraftMarket(e.target.value as ItemMarketplace | "")}
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-400 focus:outline-none focus:border-zinc-500"
-          >
-            <option value="">No marketplace</option>
-            <option value="steam">Steam</option>
-            <option value="csfloat">CSFloat</option>
-          </select>
-          <div className="flex gap-1.5">
-            <button
-              onClick={handleAccept}
-              disabled={isPending}
-              className="flex-1 px-2 py-1 text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50 transition-colors"
-            >
-              {isPending ? "…" : "Accept"}
-            </button>
-            <button
-              onClick={() => setOpen(false)}
-              className="px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </td>
-  );
-}
-
-function ItemRow({
-  item, sessionId, originalIndex,
-}: {
+function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
   item: CaseOpeningItem; sessionId: string; originalIndex: number;
+  symbol: string; cv: (v: number | null | undefined) => number | null;
+  onEdit: (item: CaseOpeningItem) => void;
 }) {
   const steamNet = item.steam_price_eur != null ? item.steam_price_eur / 1.15 : null;
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
-      <td className="px-2 py-1.5 text-zinc-200 max-w-[160px] truncate" title={item.name}>{item.name}</td>
-      <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap">{item.wear}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-400">{item.float_value?.toFixed(4) ?? "—"}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.csf_price_eur)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(item.csf_realized_eur)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.steam_price_eur)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(steamNet)}</td>
-      <td className={`px-2 py-1.5 text-right ${multiplierColor(item.item_multiplier)}`}>
+      <td className="px-2 py-1.5 max-w-[160px] truncate">
+        <button
+          onClick={() => onEdit(item)}
+          title={item.name}
+          className="text-zinc-200 hover:text-emerald-400 transition-colors text-left truncate w-full text-xs"
+        >
+          {item.name}
+        </button>
+      </td>
+      <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap text-xs">{item.wear}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{item.float_value?.toFixed(4) ?? "—"}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-300 text-xs">{fmt.cur(cv(item.csf_price_eur), symbol)}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{fmt.cur(cv(item.csf_realized_eur), symbol)}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-300 text-xs">{fmt.cur(cv(item.steam_price_eur), symbol)}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{fmt.cur(cv(steamNet), symbol)}</td>
+      <td className={`px-2 py-1.5 text-right text-xs ${multiplierColor(item.item_multiplier)}`}>
         {item.item_multiplier != null ? item.item_multiplier.toFixed(3) + "x" : "—"}
       </td>
-      <StatusCell item={item} sessionId={sessionId} />
+      <td className="px-2 py-1.5 text-center">
+        <button
+          onClick={() => onEdit(item)}
+          className={`text-[11px] whitespace-nowrap leading-none ${statusColor(item.status)}`}
+        >
+          {item.status.replace("_", " ")}
+          {item.marketplace && (
+            <span className="block text-zinc-500 text-[10px]">{item.marketplace}</span>
+          )}
+        </button>
+      </td>
       <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
         {relativeTime(item.status_updated_at)}
       </td>
@@ -227,6 +300,11 @@ export default function CaseOpeningDetail() {
   const syncSession = useSyncCaseOpening(id!);
   const updateSession = useUpdateCaseOpening(id!);
 
+  const { convert, symbol } = useCurrency();
+  const { data: rateData } = useExchangeRate();
+  const rate = rateData?.rate ?? 1;
+  const cv = (v: number | null | undefined) => convert(v, rate);
+
   const [itemName, setItemName] = useState("");
   const [wear, setWear] = useState("Field-Tested");
   const [floatVal, setFloatVal] = useState("");
@@ -234,6 +312,7 @@ export default function CaseOpeningDetail() {
   const [filter, setFilter] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+  const [editingItem, setEditingItem] = useState<CaseOpeningItem | null>(null);
 
   const [editingUnbox, setEditingUnbox] = useState(false);
   const [editingMult, setEditingMult] = useState(false);
@@ -267,7 +346,6 @@ export default function CaseOpeningDetail() {
     else { setSortCol(col); setSortDir("asc"); }
   };
 
-  // Keep original index for sync/delete (index-based endpoints)
   const indexedItems = session.items.map((item, i) => ({ item, originalIndex: i }));
   const filtered = filter
     ? indexedItems.filter(({ item }) => item.name.toLowerCase().includes(filter.toLowerCase()))
@@ -279,8 +357,8 @@ export default function CaseOpeningDetail() {
     return sortDir === "asc" ? cmp : -cmp;
   });
 
-  const thSort = (label: string, col: SortCol) => (
-    <SortTh label={label} col={col} active={sortCol} dir={sortDir} onToggle={toggleSort} />
+  const thSort = (label: string, col: SortCol, align?: string) => (
+    <SortTh label={label} col={col} active={sortCol} dir={sortDir} onToggle={toggleSort} align={align} />
   );
 
   return (
@@ -321,7 +399,7 @@ export default function CaseOpeningDetail() {
           ) : (
             <button onClick={() => { setUnboxDraft(String(session.unbox_price)); setEditingUnbox(true); }}
               className="text-zinc-200 hover:text-emerald-400 transition-colors">
-              {fmt.eur(session.unbox_price)}
+              {fmt.cur(cv(session.unbox_price), symbol)}
             </button>
           )}
         </div>
@@ -355,7 +433,7 @@ export default function CaseOpeningDetail() {
         <StatCard label="CSF ROI" value={pct(session.csf_roi)} />
         <StatCard label="Steam ROI" value={pct(session.steam_roi)} />
         <StatCard label="CSF ROI ×Mult" value={pct(session.csf_roi_multiplied)} />
-        <StatCard label="Total CSF" value={fmt.eur(session.total_csf_value)} />
+        <StatCard label={`Total CSF (${symbol})`} value={fmt.cur(cv(session.total_csf_value), symbol)} />
       </div>
 
       {rateLimitMsg && (
@@ -385,23 +463,31 @@ export default function CaseOpeningDetail() {
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900">
-                {thSort("Item", "name")}
-                {thSort("Wear", "wear")}
+                {thSort("Item", "name", "text-left")}
+                {thSort("Wear", "wear", "text-left")}
                 {thSort("Float", "float_value")}
-                {thSort("CSF €", "csf_price_eur")}
-                {thSort("CSF Real €", "csf_realized_eur")}
-                {thSort("Steam Med €", "steam_price_eur")}
-                {thSort("Steam Net €", "steam_net")}
+                {thSort(`CSF`, "csf_price_eur")}
+                {thSort(`Real`, "csf_realized_eur")}
+                {thSort(`Steam Med`, "steam_price_eur")}
+                {thSort(`Steam Net`, "steam_net")}
                 {thSort("Mult", "item_multiplier")}
                 {thSort("Status", "status")}
-                {thSort("Changed", "status_updated_at")}
+                {thSort("Timestamp", "status_updated_at")}
                 {thSort("Synced", "last_synced_at")}
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
               {sorted.map(({ item, originalIndex }) => (
-                <ItemRow key={item.id} item={item} sessionId={id!} originalIndex={originalIndex} />
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  sessionId={id!}
+                  originalIndex={originalIndex}
+                  symbol={symbol}
+                  cv={cv}
+                  onEdit={setEditingItem}
+                />
               ))}
             </tbody>
           </table>
@@ -442,6 +528,15 @@ export default function CaseOpeningDetail() {
           {addItem.isPending ? <Spinner size={12} /> : "Add Item"}
         </button>
       </form>
+
+      {/* Edit modal — rendered outside the table */}
+      {editingItem && (
+        <ItemEditModal
+          item={editingItem}
+          sessionId={id!}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
