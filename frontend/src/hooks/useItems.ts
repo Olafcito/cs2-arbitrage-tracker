@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useRef } from "react";
 import { addItem, deleteItem, getItems, syncItem, syncAllItems } from "../api/items";
 import { api } from "../api/client";
 import type { ArbitrageItem } from "../types/api";
@@ -71,16 +72,25 @@ export function useSyncItem() {
 
 export function useSyncAllItems() {
   const qc = useQueryClient();
-  return useMutation({
+  const [isSyncing, setIsSyncing] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const mutation = useMutation({
     mutationFn: syncAllItems,
     onSuccess: () => {
-      // Poll until items stop changing — simple approach: refetch every 4s for 60s
+      setIsSyncing(true);
       let ticks = 0;
-      const interval = setInterval(() => {
+      intervalRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: queryKeys.items });
         ticks++;
-        if (ticks >= 15) clearInterval(interval);
+        if (ticks >= 15) {
+          clearInterval(intervalRef.current!);
+          setIsSyncing(false);
+        }
       }, 4_000);
     },
+    onError: () => setIsSyncing(false),
   });
+
+  return { ...mutation, isSyncing: isSyncing || mutation.isPending };
 }
