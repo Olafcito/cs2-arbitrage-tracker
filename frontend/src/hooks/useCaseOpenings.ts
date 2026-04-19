@@ -10,6 +10,7 @@ import {
   syncCaseOpening,
   syncCaseOpeningItem,
   updateCaseOpening,
+  updateCaseOpeningItem,
   updateCaseOpeningItemStatus,
 } from "../api/caseOpenings";
 import type { CaseOpeningCreate, CaseOpeningItemInput, CaseOpeningPatch, ItemMarketplace, ItemStatus } from "../types/api";
@@ -97,6 +98,15 @@ export function useSyncCaseOpening(sessionId: string) {
   });
 
   return { ...mutation, isSyncing: isSyncing || mutation.isPending };
+}
+
+export function useUpdateCaseOpeningItem(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, patch }: { itemId: string; patch: { name?: string; wear?: string; float_value?: number | null } }) =>
+      updateCaseOpeningItem(sessionId, itemId, patch),
+    onSuccess: (updated) => qc.setQueryData(queryKeys.caseOpening(sessionId), updated),
+  });
 }
 
 export function useUpdateCaseOpeningItemStatus(sessionId: string) {
