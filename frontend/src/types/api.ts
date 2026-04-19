@@ -125,12 +125,28 @@ export interface GroupPatch {
   item_names?: string[];
 }
 
+export type ItemStatus = "opened" | "for_sale" | "delisted" | "sold";
+export type ItemMarketplace = "steam" | "csfloat";
+
+export interface StatusEvent {
+  status: ItemStatus;
+  marketplace: ItemMarketplace | null;
+  changed_at: string;
+}
+
 export interface CaseOpeningItem {
+  id: string;
   name: string;
   wear: string;
   float_value: number | null;
   csf_price_eur: number | null;
+  csf_realized_eur: number | null;
   steam_price_eur: number | null;
+  item_multiplier: number | null;
+  status: ItemStatus;
+  marketplace: ItemMarketplace | null;
+  status_updated_at: string;
+  status_history: StatusEvent[];
   last_synced_at: string | null;
 }
 
@@ -158,6 +174,7 @@ export interface CaseOpeningSummary {
   multiplier: number;
   csf_roi: number | null;
   steam_roi: number | null;
+  last_event_at: string;
 }
 
 export interface CaseOpeningCreate {

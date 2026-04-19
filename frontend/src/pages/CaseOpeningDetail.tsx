@@ -8,12 +8,13 @@ import {
   useSyncCaseOpening,
   useSyncCaseOpeningItem,
   useUpdateCaseOpening,
+  useUpdateCaseOpeningItemStatus,
 } from "../hooks/useCaseOpenings";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import StatCard from "../components/ui/StatCard";
 import { fmt, relativeTime } from "../utils/format";
-import type { CaseOpeningItem } from "../types/api";
+import type { CaseOpeningItem, ItemMarketplace, ItemStatus } from "../types/api";
 
 const WEAR_OPTIONS = [
   "Factory New",
@@ -23,9 +24,68 @@ const WEAR_OPTIONS = [
   "Battle-Scarred",
 ];
 
+const STATUS_OPTIONS: ItemStatus[] = ["opened", "for_sale", "delisted", "sold"];
+const MARKETPLACE_OPTIONS: Array<ItemMarketplace | ""> = ["", "steam", "csfloat"];
+
+type SortCol =
+  | "name" | "wear" | "float_value"
+  | "csf_price_eur" | "csf_realized_eur"
+  | "steam_price_eur" | "steam_net"
+  | "item_multiplier" | "status" | "last_synced_at";
+
+function colValue(item: CaseOpeningItem, col: SortCol): number | string {
+  switch (col) {
+    case "name": return item.name;
+    case "wear": return item.wear;
+    case "float_value": return item.float_value ?? -1;
+    case "csf_price_eur": return item.csf_price_eur ?? -1;
+    case "csf_realized_eur": return item.csf_realized_eur ?? -1;
+    case "steam_price_eur": return item.steam_price_eur ?? -1;
+    case "steam_net": return item.steam_price_eur != null ? item.steam_price_eur / 1.15 : -1;
+    case "item_multiplier": return item.item_multiplier ?? -1;
+    case "status": return item.status;
+    case "last_synced_at": return item.last_synced_at ?? "";
+  }
+}
+
+function statusColor(s: ItemStatus) {
+  switch (s) {
+    case "opened": return "text-zinc-400";
+    case "for_sale": return "text-amber-400";
+    case "sold": return "text-emerald-400";
+    case "delisted": return "text-red-400";
+  }
+}
+
+function multiplierColor(m: number | null) {
+  if (m == null) return "text-zinc-500";
+  if (m >= 1.2) return "text-emerald-400 font-semibold";
+  if (m >= 1.0) return "text-amber-400";
+  return "text-red-400";
+}
+
 function pct(n: number | null | undefined, digits = 1) {
-  if (n === null || n === undefined) return "—";
+  if (n == null) return "—";
   return `${(n * 100).toFixed(digits)}%`;
+}
+
+function SortTh({
+  label, col, active, dir, onToggle,
+}: {
+  label: string; col: SortCol; active: SortCol; dir: "asc" | "desc";
+  onToggle: (c: SortCol) => void;
+}) {
+  return (
+    <th
+      onClick={() => onToggle(col)}
+      className="px-2 py-2 text-right text-zinc-400 font-medium cursor-pointer hover:text-zinc-200 select-none whitespace-nowrap"
+    >
+      {label}
+      <span className={`ml-1 ${col === active ? "text-emerald-400" : "text-zinc-700"}`}>
+        {col === active ? (dir === "asc" ? "↑" : "↓") : "↕"}
+      </span>
+    </th>
+  );
 }
 
 function ItemSyncButton({ sessionId, index }: { sessionId: string; index: number }) {
@@ -34,7 +94,7 @@ function ItemSyncButton({ sessionId, index }: { sessionId: string; index: number
     <button
       onClick={() => mutate(index)}
       disabled={isPending}
-      title="Sync item prices"
+      title="Sync prices"
       className="p-1 text-zinc-600 hover:text-emerald-400 disabled:opacity-40 transition-colors"
     >
       <RefreshCw size={11} className={isPending ? "animate-spin" : ""} />
@@ -55,23 +115,71 @@ function ItemDeleteButton({ sessionId, index }: { sessionId: string; index: numb
   );
 }
 
-function ItemRow({ item, index, sessionId }: { item: CaseOpeningItem; index: number; sessionId: string }) {
-  const steamNet = item.steam_price_eur !== null ? item.steam_price_eur / 1.15 : null;
+function StatusCell({ item, sessionId }: { item: CaseOpeningItem; sessionId: string }) {
+  const { mutate, isPending } = useUpdateCaseOpeningItemStatus(sessionId);
+
+  const handleStatus = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    mutate({ itemId: item.id, status: e.target.value as ItemStatus, marketplace: item.marketplace });
+  };
+  const handleMarketplace = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value as ItemMarketplace | "";
+    mutate({ itemId: item.id, status: item.status, marketplace: val || null });
+  };
+
+  return (
+    <td className="px-2 py-1.5 text-center" colSpan={2}>
+      <div className="flex items-center gap-1 justify-center">
+        <select
+          value={item.status}
+          onChange={handleStatus}
+          disabled={isPending}
+          className={`bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[11px] focus:outline-none focus:border-zinc-500 disabled:opacity-50 ${statusColor(item.status)}`}
+        >
+          {STATUS_OPTIONS.map((s) => (
+            <option key={s} value={s}>{s.replace("_", " ")}</option>
+          ))}
+        </select>
+        <select
+          value={item.marketplace ?? ""}
+          onChange={handleMarketplace}
+          disabled={isPending}
+          className="bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[11px] text-zinc-400 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
+        >
+          {MARKETPLACE_OPTIONS.map((m) => (
+            <option key={m} value={m}>{m || "—"}</option>
+          ))}
+        </select>
+      </div>
+    </td>
+  );
+}
+
+function ItemRow({
+  item, sessionId, originalIndex,
+}: {
+  item: CaseOpeningItem; sessionId: string; originalIndex: number;
+}) {
+  const steamNet = item.steam_price_eur != null ? item.steam_price_eur / 1.15 : null;
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
-      <td className="px-2 py-1.5 text-zinc-200">{item.name}</td>
-      <td className="px-2 py-1.5 text-zinc-400">{item.wear}</td>
+      <td className="px-2 py-1.5 text-zinc-200 max-w-[160px] truncate" title={item.name}>{item.name}</td>
+      <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap">{item.wear}</td>
       <td className="px-2 py-1.5 text-right text-zinc-400">{item.float_value?.toFixed(4) ?? "—"}</td>
       <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.csf_price_eur)}</td>
+      <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(item.csf_realized_eur)}</td>
       <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.steam_price_eur)}</td>
       <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(steamNet)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px]">
+      <td className={`px-2 py-1.5 text-right ${multiplierColor(item.item_multiplier)}`}>
+        {item.item_multiplier != null ? item.item_multiplier.toFixed(3) + "x" : "—"}
+      </td>
+      <StatusCell item={item} sessionId={sessionId} />
+      <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
         {item.last_synced_at ? relativeTime(item.last_synced_at) : "—"}
       </td>
       <td className="px-2 py-1.5 text-center">
         <div className="flex items-center justify-center gap-0.5">
-          <ItemSyncButton sessionId={sessionId} index={index} />
-          <ItemDeleteButton sessionId={sessionId} index={index} />
+          <ItemSyncButton sessionId={sessionId} index={originalIndex} />
+          <ItemDeleteButton sessionId={sessionId} index={originalIndex} />
         </div>
       </td>
     </tr>
@@ -89,8 +197,10 @@ export default function CaseOpeningDetail() {
   const [wear, setWear] = useState("Field-Tested");
   const [floatVal, setFloatVal] = useState("");
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
+  const [filter, setFilter] = useState("");
+  const [sortCol, setSortCol] = useState<SortCol>("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Editable header fields (unbox price + multiplier)
   const [editingUnbox, setEditingUnbox] = useState(false);
   const [editingMult, setEditingMult] = useState(false);
   const [unboxDraft, setUnboxDraft] = useState("");
@@ -102,11 +212,10 @@ export default function CaseOpeningDetail() {
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!itemName.trim()) return;
-    addItem.mutate({
-      name: itemName.trim(),
-      wear,
-      float_value: floatVal ? parseFloat(floatVal) : null,
-    }, { onSuccess: () => { setItemName(""); setFloatVal(""); } });
+    addItem.mutate(
+      { name: itemName.trim(), wear, float_value: floatVal ? parseFloat(floatVal) : null },
+      { onSuccess: () => { setItemName(""); setFloatVal(""); } },
+    );
   };
 
   const handleSyncAll = () => {
@@ -119,6 +228,27 @@ export default function CaseOpeningDetail() {
     });
   };
 
+  const toggleSort = (col: SortCol) => {
+    if (col === sortCol) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortCol(col); setSortDir("asc"); }
+  };
+
+  // Keep original index for sync/delete (index-based endpoints)
+  const indexedItems = session.items.map((item, i) => ({ item, originalIndex: i }));
+  const filtered = filter
+    ? indexedItems.filter(({ item }) => item.name.toLowerCase().includes(filter.toLowerCase()))
+    : indexedItems;
+  const sorted = [...filtered].sort((a, b) => {
+    const av = colValue(a.item, sortCol);
+    const bv = colValue(b.item, sortCol);
+    const cmp = typeof av === "string" ? av.localeCompare(bv as string) : (av as number) - (bv as number);
+    return sortDir === "asc" ? cmp : -cmp;
+  });
+
+  const thSort = (label: string, col: SortCol) => (
+    <SortTh label={label} col={col} active={sortCol} dir={sortDir} onToggle={toggleSort} />
+  );
+
   return (
     <div>
       {/* Header */}
@@ -128,11 +258,11 @@ export default function CaseOpeningDetail() {
           <span className="text-xs text-zinc-500">{session.date}</span>
           <button
             onClick={handleSyncAll}
-            disabled={syncSession.isPending}
+            disabled={syncSession.isSyncing}
             className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 disabled:opacity-40 transition-colors"
           >
-            <RefreshCw size={11} className={syncSession.isPending ? "animate-spin" : ""} />
-            {syncSession.isPending ? "Syncing…" : "Sync All"}
+            <RefreshCw size={11} className={syncSession.isSyncing ? "animate-spin" : ""} />
+            {syncSession.isSyncing ? "Syncing…" : "Sync All"}
           </button>
         </div>
       </div>
@@ -148,14 +278,9 @@ export default function CaseOpeningDetail() {
               if (!isNaN(v)) updateSession.mutate({ unbox_price: v });
               setEditingUnbox(false);
             }} className="flex items-center gap-1">
-              <input
-                autoFocus
-                type="number"
-                step="0.01"
-                value={unboxDraft}
+              <input autoFocus type="number" step="0.01" value={unboxDraft}
                 onChange={(e) => setUnboxDraft(e.target.value)}
-                className="w-20 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none"
-              />
+                className="w-20 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none" />
               <button type="submit" className="text-emerald-400 hover:text-emerald-300">✓</button>
               <button type="button" onClick={() => setEditingUnbox(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
             </form>
@@ -175,14 +300,9 @@ export default function CaseOpeningDetail() {
               if (!isNaN(v)) updateSession.mutate({ multiplier: v });
               setEditingMult(false);
             }} className="flex items-center gap-1">
-              <input
-                autoFocus
-                type="number"
-                step="0.01"
-                value={multDraft}
+              <input autoFocus type="number" step="0.01" value={multDraft}
                 onChange={(e) => setMultDraft(e.target.value)}
-                className="w-16 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none"
-              />
+                className="w-16 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none" />
               <button type="submit" className="text-emerald-400 hover:text-emerald-300">✓</button>
               <button type="button" onClick={() => setEditingMult(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
             </form>
@@ -210,25 +330,43 @@ export default function CaseOpeningDetail() {
         </div>
       )}
 
+      {/* Filter */}
+      {session.items.length > 0 && (
+        <div className="mb-2">
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter items…"
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-48"
+          />
+          {filter && (
+            <span className="ml-2 text-[11px] text-zinc-500">{sorted.length} / {session.items.length}</span>
+          )}
+        </div>
+      )}
+
       {/* Item table */}
       {session.items.length > 0 && (
         <div className="overflow-x-auto rounded border border-zinc-800 mb-4">
           <table className="w-full border-collapse text-xs">
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900">
-                <th className="px-2 py-2 text-left text-zinc-400 font-medium">Item</th>
-                <th className="px-2 py-2 text-left text-zinc-400 font-medium">Wear</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Float</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSFloat €</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Steam €</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Steam Net</th>
-                <th className="px-2 py-2 text-right text-zinc-400 font-medium">Synced</th>
+                {thSort("Item", "name")}
+                {thSort("Wear", "wear")}
+                {thSort("Float", "float_value")}
+                {thSort("CSF €", "csf_price_eur")}
+                {thSort("CSF Real €", "csf_realized_eur")}
+                {thSort("Steam Med €", "steam_price_eur")}
+                {thSort("Steam Net €", "steam_net")}
+                {thSort("Mult", "item_multiplier")}
+                <th className="px-2 py-2 text-center text-zinc-400 font-medium" colSpan={2}>Status / Market</th>
+                {thSort("Synced", "last_synced_at")}
                 <th className="px-2 py-2" />
               </tr>
             </thead>
             <tbody>
-              {session.items.map((item, i) => (
-                <ItemRow key={i} item={item} index={i} sessionId={id!} />
+              {sorted.map(({ item, originalIndex }) => (
+                <ItemRow key={item.id} item={item} sessionId={id!} originalIndex={originalIndex} />
               ))}
             </tbody>
           </table>
@@ -247,37 +385,25 @@ export default function CaseOpeningDetail() {
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
             placeholder="AK-47 | Redline"
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-64"
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-56"
           />
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-zinc-500">Wear</label>
-          <select
-            value={wear}
-            onChange={(e) => setWear(e.target.value)}
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
-          >
+          <select value={wear} onChange={(e) => setWear(e.target.value)}
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500">
             {WEAR_OPTIONS.map((w) => <option key={w}>{w}</option>)}
           </select>
         </div>
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-zinc-500">Float (optional)</label>
-          <input
-            type="number"
-            step="0.0001"
-            min="0"
-            max="1"
-            value={floatVal}
+          <input type="number" step="0.0001" min="0" max="1" value={floatVal}
             onChange={(e) => setFloatVal(e.target.value)}
             placeholder="0.1234"
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28"
-          />
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28" />
         </div>
-        <button
-          type="submit"
-          disabled={addItem.isPending || !itemName.trim()}
-          className="px-3 py-1 text-xs rounded border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 disabled:opacity-40 transition-colors"
-        >
+        <button type="submit" disabled={addItem.isPending || !itemName.trim()}
+          className="px-3 py-1 text-xs rounded border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 disabled:opacity-40 transition-colors">
           {addItem.isPending ? <Spinner size={12} /> : "Add Item"}
         </button>
       </form>

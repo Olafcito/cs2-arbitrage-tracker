@@ -1,10 +1,27 @@
 import { useState } from "react";
-import { AlertTriangle, RefreshCw } from "lucide-react";
+import { AlertTriangle, Plus, RefreshCw } from "lucide-react";
 import { useDeals } from "../hooks/useDeals";
+import { useAddItem } from "../hooks/useItems";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import Badge from "../components/ui/Badge";
 import { fmt, liquidityClass, multiplierClass } from "../utils/format";
+
+function AddToItemsButton({ name }: { name: string }) {
+  const { mutate, isPending, isSuccess, isError } = useAddItem();
+  return (
+    <button
+      onClick={() => mutate(name)}
+      disabled={isPending || isSuccess}
+      title={isSuccess ? "Added to Items" : isError ? "Failed — check item name" : "Add to Items Tracker"}
+      className={`p-1 transition-colors disabled:opacity-50 ${
+        isSuccess ? "text-emerald-500" : isError ? "text-red-400" : "text-zinc-600 hover:text-emerald-400"
+      }`}
+    >
+      {isPending ? <Spinner size={11} /> : <Plus size={11} />}
+    </button>
+  );
+}
 
 export default function Deals() {
   const [maxRatio, setMaxRatio] = useState(0.6);
@@ -104,6 +121,7 @@ export default function Deals() {
               <tr className="border-b border-zinc-800 bg-zinc-900">
                 <th className="px-2 py-2 text-left text-zinc-400 font-medium">#</th>
                 <th className="px-2 py-2 text-left text-zinc-400 font-medium">Name</th>
+                <th className="px-2 py-2" />
                 <th className="px-2 py-2 text-right text-zinc-400 font-medium">CSF EUR</th>
                 <th className="px-2 py-2 text-right text-zinc-400 font-medium">Steam EUR</th>
                 <th className="px-2 py-2 text-right text-zinc-400 font-medium">Ratio</th>
@@ -128,6 +146,7 @@ export default function Deals() {
                   >
                     <td className="px-2 py-1.5 text-zinc-600">{i + 1}</td>
                     <td className="px-2 py-1.5 text-left text-zinc-200 max-w-[200px] truncate">{deal.name}</td>
+                    <td className="px-2 py-1.5 text-center"><AddToItemsButton name={deal.name} /></td>
                     <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(deal.csf_price_eur)}</td>
                     <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(steamEur)}</td>
                     <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.ratio(deal.csroi_ratio)}</td>
