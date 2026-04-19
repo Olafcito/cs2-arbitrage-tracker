@@ -27,4 +27,4 @@ yarn-error.log*
 .pnpm-debug.log*
 
 # AI Tooling
-.claude/
+.claude/logs/
