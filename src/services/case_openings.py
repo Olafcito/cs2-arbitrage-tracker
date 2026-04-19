@@ -281,18 +281,28 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     rate = fetch_exchange_rate()
     prefix = "StatTrak\u2122 " if item.stattrak else ""
     market_hash_name = f"{prefix}{item.name} ({item.wear})"
-
     listing = fetch_listing_data(
         market_hash_name,
         category=2 if item.stattrak else None,
         min_float=item.float_value,
-        price_discount=_CSF_PRICE_DISCOUNT,
+      #  price_discount=_CSF_PRICE_DISCOUNT,
     )
+    
+    # Fallback in cases where item has the highest float within its wear.
+    if listing is None:
+        listing = fetch_listing_data(
+            market_hash_name,
+            category=2 if item.stattrak else None,
+          #  price_discount=_CSF_PRICE_DISCOUNT,
+    )
+
+
     csf_eur = listing.price_usd * rate if listing is not None else item.csf_price_eur
 
-    steam = fetch_price_overview(market_hash_name)
+    steam = fetch_price_overview(market_hash_name) 
+    
     # Use median price — more stable than lowest for sell-side decisions
-    steam_eur = steam.median_price_eur if steam.median_price_eur is not None else item.steam_price_eur
+    steam_eur = steam.median_price_eur if steam.median_price_eur is not None else steam.lowest_price_eur if steam.lowest_price_eur is not None else item.steam_price_eur
 
     synced_item = item.model_copy(update={
         "csf_price_eur": csf_eur,

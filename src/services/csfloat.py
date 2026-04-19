@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 import requests
 
@@ -114,7 +115,7 @@ def fetch_listing_data(
     market_hash_name: str,
     category: int | None = None,
     min_float: float | None = None,
-    price_discount: float = 1.0,
+    price_discount: Optional[float] = 1.0,
 ) -> ListingData | None:
     """Fetch lowest buy_now listing and return price, rarity, and icon URL together.
 
