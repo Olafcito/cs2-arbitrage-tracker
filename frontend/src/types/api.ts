@@ -203,21 +203,51 @@ export interface CaseOpeningItemInput {
   stattrak?: boolean;
 }
 
+export interface FloatInfo {
+  floatvalue: number | null;
+  paintseed: number | null;
+  phase: string | null;
+  isstattrak: boolean;
+  issouvenir: boolean;
+}
+
 export interface InventoryItem {
+  id: string;
   assetid: string;
   markethashname: string;
   image: string | null;
-  float_value: number | null;
-  rarity: string | null;
-  phase: string | null;
-  tradeable: boolean;
-  tradable_date: string | null;
-  acquired_at: string | null;
+
+  // Pricing (USD)
   pricelatest: number | null;
   pricemix: number | null;
+  pricereal: number | null;
   buyorderprice: number | null;
-  stickers: unknown[];
-  keychains: unknown[];
+  pricemedian: number | null;
+
+  // Market volume
+  sold7d: number | null;
+  sold30d: number | null;
+  offervolume: number | null;
+
+  // Wear / quality — float is a nested object
+  float_info: FloatInfo | null;
+  rarity: string | null;
+  color: string | null;    // hex rarity colour from API, e.g. "d32ce6"
+  quality: string | null;
+  wear: string | null;     // abbreviated: fn/mw/ft/ww/bs
+
+  // Identity
+  isstattrak: boolean;
+  issouvenir: boolean;
+
+  // Trade status
+  tradable: boolean;
+  tradelocked: boolean;
+  markettradablerestriction: number;  // days until tradeable
+  marketable: boolean;
+
+  // Timestamps
+  firstseenat: string | null;   // ISO datetime — acquired at
 }
 
 export interface InventorySnapshot {
@@ -225,4 +255,17 @@ export interface InventorySnapshot {
   steam_id: string;
   item_count: number;
   items: InventoryItem[];
+}
+
+export interface InventoryUsage {
+  month: string;
+  syncs_this_month: number;
+  syncs_remaining: number;
+  monthly_limit: number;
+  last_sync_at: string | null;
+}
+
+export interface InventoryResponse {
+  snapshot: InventorySnapshot | null;
+  usage: InventoryUsage;
 }
