@@ -33,6 +33,8 @@ class CaseOpeningItem(ArbitrageBase):
     steam_price_eur: float | None = None
     item_multiplier: float | None = None    # steam_net / csf_realized
 
+    stattrak: bool = False
+
     # Status lifecycle
     status: ItemStatus = "opened"
     marketplace: ItemMarketplace | None = None
@@ -91,6 +93,7 @@ class CaseOpeningItemInput(BaseModel):
     name: str
     wear: str
     float_value: float | None = None
+    stattrak: bool = False
 
 
 class CaseOpeningItemStatusPatch(BaseModel):
@@ -102,3 +105,4 @@ class CaseOpeningItemPatch(BaseModel):
     name: str | None = None
     wear: str | None = None
     float_value: float | None = None
+    stattrak: bool | None = None
