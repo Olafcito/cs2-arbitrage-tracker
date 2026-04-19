@@ -1,11 +1,9 @@
 """CSFloat API client — fetches live listing prices."""
 
 import re
+from dataclasses import dataclass
 
 import requests
-
-def _is_stattrak(name: str) -> bool:
-    return bool(re.match(r"^stattrak", name, re.IGNORECASE))
 
 from src.config import CSFLOAT_API_KEY, CSFLOAT_BASE_URL
 
@@ -25,12 +23,25 @@ VALID_CATEGORIES = {0, 1, 2, 3}
 # listing type filter
 VALID_TYPES = {"buy_now", "auction"}
 
+_STEAM_CDN = "https://community.cloudflare.steamstatic.com/economy/image"
+
+
+def _is_stattrak(name: str) -> bool:
+    return bool(re.match(r"^stattrak", name, re.IGNORECASE))
+
+
+@dataclass
+class ListingData:
+    price_usd: float
+    rarity: int | None
+    icon_url: str | None
+
 
 def fetch_listings(
     market_hash_name: str,
     sort_by: str | None = "lowest_price",
     category: int | None = None,
-    listing_type: str | None = None,
+    listing_type: str = "buy_now",
     min_float: float | None = None,
     max_float: float | None = None,
     limit: int = 10,
@@ -97,3 +108,37 @@ def fetch_lowest_price(
         return None
     price_usd = listings[0]["price"] / 100
     return price_usd * price_discount
+
+
+def fetch_listing_data(
+    market_hash_name: str,
+    category: int | None = None,
+    min_float: float | None = None,
+    price_discount: float = 1.0,
+) -> ListingData | None:
+    """Fetch lowest buy_now listing and return price, rarity, and icon URL together.
+
+    Preferred over fetch_lowest_price when rarity/image data is also needed.
+    Returns None if no API key configured or no listings found.
+    """
+    resolved_category = category if category is not None else (2 if _is_stattrak(market_hash_name) else None)
+    listings = fetch_listings(
+        market_hash_name,
+        sort_by="lowest_price",
+        listing_type="buy_now",
+        category=resolved_category,
+        min_float=min_float,
+        limit=1,
+    )
+    if not listings:
+        return None
+    listing = listings[0]
+    item_data = listing.get("item", {})
+    price_usd = listing["price"] / 100 * price_discount
+    raw_icon = item_data.get("icon_url")
+    icon_url = f"{_STEAM_CDN}/{raw_icon}" if raw_icon else None
+    return ListingData(
+        price_usd=price_usd,
+        rarity=item_data.get("rarity"),
+        icon_url=icon_url,
+    )

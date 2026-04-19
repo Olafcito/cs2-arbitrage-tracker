@@ -34,6 +34,8 @@ class CaseOpeningItem(ArbitrageBase):
     item_multiplier: float | None = None    # steam_net / csf_realized
 
     stattrak: bool = False
+    rarity: int | None = None
+    icon_url: str | None = None
 
     # Status lifecycle
     status: ItemStatus = "opened"

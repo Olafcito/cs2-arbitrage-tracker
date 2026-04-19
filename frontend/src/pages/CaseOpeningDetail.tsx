@@ -54,6 +54,21 @@ function statusColor(s: ItemStatus) {
   }
 }
 
+// CS2 rarity integer → exact Steam/CSFloat rarity color
+const RARITY_COLORS: Record<number, string> = {
+  1: "#b0c3d9", // Consumer Grade
+  2: "#5e98d9", // Industrial Grade
+  3: "#4b69ff", // Mil-Spec
+  4: "#8847ff", // Restricted
+  5: "#d32ce6", // Classified
+  6: "#eb4b4b", // Covert
+  7: "#e4ae39", // Extraordinary / Contraband
+};
+
+function rarityColor(rarity: number | null): string | undefined {
+  return rarity != null ? RARITY_COLORS[rarity] : undefined;
+}
+
 function multiplierColor(m: number | null) {
   if (m == null) return "text-zinc-500";
   if (m >= 1.2) return "text-emerald-400 font-semibold";
@@ -353,14 +368,18 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
       <td className="px-2 py-1.5 max-w-[180px]">
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {item.icon_url && (
+            <img src={item.icon_url} alt="" className="shrink-0 w-6 h-6 object-contain" />
+          )}
           {item.stattrak && (
             <span className="shrink-0 px-1 py-0.5 rounded text-[9px] bg-amber-900/50 text-amber-400 border border-amber-800 leading-none">ST™</span>
           )}
           <button
             onClick={() => onEdit(item)}
             title={item.name}
-            className="text-zinc-200 hover:text-emerald-400 transition-colors text-left truncate text-xs"
+            style={{ color: rarityColor(item.rarity) }}
+            className="hover:brightness-125 transition-all text-left truncate text-xs"
           >
             {item.name}
           </button>
