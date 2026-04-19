@@ -39,6 +39,7 @@ def build_arbitrage_item(
     last_synced_at: datetime | None = None,
     price_source: Literal["csroi", "markets"] = "csroi",
     updated_at: str | None = None,
+    created_at: str | None = None,
 ) -> ArbitrageItem:
     """Build a complete ArbitrageItem from USD prices + exchange rate."""
     csf_eur = csf_price_usd * rate
@@ -60,6 +61,7 @@ def build_arbitrage_item(
         steam_balance_per_100_eur=mult * 100,
         item_type=item_type,
         steam_price=steam_price,
+        created_at=created_at,
         updated_at=updated_at or datetime.now(timezone.utc).isoformat(),
         last_synced_at=last_synced_at,
         price_source=price_source,

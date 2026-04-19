@@ -113,6 +113,10 @@ export default function ItemsTracker() {
 
   const handleSyncAll = () => {
     setRateLimitMsg(null);
+    if (syncAll.isSyncing) {
+      syncAll.handleSync();
+      return;
+    }
     syncAll.mutate(undefined, {
       onError: (err) => {
         const e = err as { status?: number; message?: string };
@@ -133,11 +137,14 @@ export default function ItemsTracker() {
         <h1 className="text-sm font-bold text-zinc-100">Items Tracker</h1>
         <button
           onClick={handleSyncAll}
-          disabled={syncAll.isSyncing}
-          className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 disabled:opacity-40 transition-colors"
+          className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
+            syncAll.isSyncing
+              ? "border-amber-700 text-amber-400 hover:text-amber-200 hover:border-amber-500"
+              : "border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+          }`}
         >
           <RefreshCw size={11} className={syncAll.isSyncing ? "animate-spin" : ""} />
-          {syncAll.isSyncing ? "Syncing…" : "Sync All"}
+          {syncAll.isSyncing ? "Cancel" : "Sync All"}
         </button>
       </div>
       <AddItemForm />
@@ -211,9 +218,16 @@ export default function ItemsTracker() {
                   <td className="px-2 py-1.5 text-left whitespace-nowrap">
                     <div className="flex items-center gap-1">
                       <SourceBadge source={item.price_source} />
-                      <span className="text-zinc-600 text-[11px]">
-                        {item.last_synced_at ? relativeTime(item.last_synced_at) : "—"}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-zinc-600 text-[11px]">
+                          {item.last_synced_at ? relativeTime(item.last_synced_at) : "—"}
+                        </span>
+                        {(item.created_at ?? item.updated_at) && (
+                          <span className="text-zinc-700 text-[10px]">
+                            added {relativeTime(item.created_at ?? item.updated_at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
                   <td className="px-2 py-1.5 text-center">

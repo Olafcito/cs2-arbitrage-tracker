@@ -175,6 +175,7 @@ def add_item(session_id: str, inp: CaseOpeningItemInput) -> CaseOpening | None:
         status="opened",
         status_updated_at=now,
         status_history=[StatusEvent(status="opened", changed_at=now)],
+        created_at=now,
     )
     updated = session.model_copy(update={"items": [*session.items, item], "last_event_at": now})
     _save(updated)
