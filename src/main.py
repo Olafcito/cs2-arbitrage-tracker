@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from src.utils import fetch_exchange_rate
-from src.routers import case_openings, cases, csfloat, deals, groups, items, lookup, scenarios
+from src.routers import case_openings, cases, csfloat, deals, groups, inventory, items, lookup, scenarios
 from src.services.steam import get_rate_limit_status, SteamRateLimitError
 
 # ---------------------------------------------------------------------------
@@ -82,6 +82,7 @@ app.include_router(cases.router)
 app.include_router(csfloat.router)
 app.include_router(deals.router)
 app.include_router(groups.router)
+app.include_router(inventory.router)
 app.include_router(items.router)
 app.include_router(lookup.router)
 app.include_router(scenarios.router)

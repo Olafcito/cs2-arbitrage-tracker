@@ -7,6 +7,7 @@ import Deals from "./pages/Deals";
 import Groups from "./pages/Groups";
 import CaseOpenings from "./pages/CaseOpenings";
 import CaseOpeningDetail from "./pages/CaseOpeningDetail";
+import Inventory from "./pages/Inventory";
 import ScenarioBuilder from "./pages/ScenarioBuilder";
 import ScenarioDetail from "./pages/ScenarioDetail";
 
@@ -23,6 +24,7 @@ export default function App() {
           <Route path="groups" element={<Groups />} />
           <Route path="case-openings" element={<CaseOpenings />} />
           <Route path="case-openings/:id" element={<CaseOpeningDetail />} />
+          <Route path="inventory" element={<Inventory />} />
           <Route path="scenarios" element={<ScenarioBuilder />} />
           <Route path="scenarios/:filename" element={<ScenarioDetail />} />
         </Route>

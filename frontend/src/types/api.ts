@@ -202,3 +202,27 @@ export interface CaseOpeningItemInput {
   float_value?: number | null;
   stattrak?: boolean;
 }
+
+export interface InventoryItem {
+  assetid: string;
+  markethashname: string;
+  image: string | null;
+  float_value: number | null;
+  rarity: string | null;
+  phase: string | null;
+  tradeable: boolean;
+  tradable_date: string | null;
+  acquired_at: string | null;
+  pricelatest: number | null;
+  pricemix: number | null;
+  buyorderprice: number | null;
+  stickers: unknown[];
+  keychains: unknown[];
+}
+
+export interface InventorySnapshot {
+  fetched_at: string;
+  steam_id: string;
+  item_count: number;
+  items: InventoryItem[];
+}

@@ -11,4 +11,5 @@ export const queryKeys = {
   groups: ["groups"] as const,
   caseOpenings: ["caseOpenings"] as const,
   caseOpening: (id: string) => ["caseOpening", id] as const,
+  inventory: ["inventory"] as const,
 };

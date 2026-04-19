@@ -6,6 +6,7 @@ import {
   FolderOpen,
   LayoutDashboard,
   PackageOpen,
+  Shapes,
   TrendingDown,
 } from "lucide-react";
 
@@ -16,6 +17,7 @@ const links = [
   { to: "/deals", label: "Deals", icon: TrendingDown },
   { to: "/groups", label: "Groups", icon: FolderOpen },
   { to: "/case-openings", label: "Openings", icon: PackageOpen },
+  { to: "/inventory", label: "Inventory", icon: Shapes },
   { to: "/scenarios", label: "Scenarios", icon: Calculator },
 ];
 
