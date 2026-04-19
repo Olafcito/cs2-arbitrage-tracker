@@ -26,11 +26,15 @@ export function useAddItem() {
   return useMutation({
     mutationFn: (name: string) => addItem(name),
     onSuccess: (newItem) => {
-      qc.setQueryData<ArbitrageItem[]>(queryKeys.items, (old = []) => [
-        ...old,
-        newItem,
-      ]);
-      qc.invalidateQueries({ queryKey: queryKeys.items });
+      qc.setQueryData<ArbitrageItem[]>(queryKeys.items, (old = []) => [...old, newItem]);
+      // Sync immediately so prices and last_synced_at are fresh
+      syncItem(newItem.name)
+        .then((updated) => {
+          qc.setQueryData<ArbitrageItem[]>(queryKeys.items, (old = []) =>
+            old.map((item) => (item.name === updated.name ? updated : item))
+          );
+        })
+        .catch(() => qc.invalidateQueries({ queryKey: queryKeys.items }));
     },
   });
 }
@@ -74,23 +78,50 @@ export function useSyncAllItems() {
   const qc = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const syncStartRef = useRef<string | null>(null);
+
+  const stopSyncing = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsSyncing(false);
+    syncStartRef.current = null;
+  };
 
   const mutation = useMutation({
     mutationFn: syncAllItems,
     onSuccess: () => {
+      syncStartRef.current = new Date().toISOString();
       setIsSyncing(true);
       let ticks = 0;
-      intervalRef.current = setInterval(() => {
-        qc.invalidateQueries({ queryKey: queryKeys.items });
+      intervalRef.current = setInterval(async () => {
         ticks++;
-        if (ticks >= 15) {
-          clearInterval(intervalRef.current!);
-          setIsSyncing(false);
+        await qc.refetchQueries({ queryKey: queryKeys.items });
+        const items = qc.getQueryData<ArbitrageItem[]>(queryKeys.items);
+        const allSynced =
+          items &&
+          syncStartRef.current !== null &&
+          items.every(
+            (item) =>
+              item.last_synced_at !== null &&
+              new Date(item.last_synced_at) >= new Date(syncStartRef.current!)
+          );
+        if (ticks >= 20 || allSynced) {
+          stopSyncing();
         }
       }, 4_000);
     },
-    onError: () => setIsSyncing(false),
+    onError: stopSyncing,
   });
 
-  return { ...mutation, isSyncing: isSyncing || mutation.isPending };
+  const handleSync = () => {
+    if (isSyncing) {
+      stopSyncing();
+      return;
+    }
+    mutation.mutate(undefined);
+  };
+
+  return { ...mutation, isSyncing: isSyncing || mutation.isPending, handleSync };
 }

@@ -68,6 +68,7 @@ class ArbitrageItem(ArbitrageBase):
     item_type: ItemType | None = None
 
     # Metadata
+    created_at: str | None = None
     updated_at: str
     last_synced_at: datetime | None = None
     price_source: Literal["csroi", "markets"] = "csroi"

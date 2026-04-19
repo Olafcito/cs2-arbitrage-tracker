@@ -33,6 +33,7 @@ export interface ArbitrageItem {
   steam_balance_per_100_eur: number;
   steam_price: SteamPrice | null;
   item_type: ItemType | null;
+  created_at: string | null;
   updated_at: string;
   last_synced_at: string | null;
   price_source: "csroi" | "markets";
@@ -147,6 +148,7 @@ export interface CaseOpeningItem {
   marketplace: ItemMarketplace | null;
   status_updated_at: string;
   status_history: StatusEvent[];
+  created_at: string | null;
   last_synced_at: string | null;
 }
 
