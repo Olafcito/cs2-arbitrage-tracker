@@ -25,13 +25,13 @@ const WEAR_OPTIONS = [
 ];
 
 const STATUS_OPTIONS: ItemStatus[] = ["opened", "for_sale", "delisted", "sold"];
-const MARKETPLACE_OPTIONS: Array<ItemMarketplace | ""> = ["", "steam", "csfloat"];
+
 
 type SortCol =
   | "name" | "wear" | "float_value"
   | "csf_price_eur" | "csf_realized_eur"
   | "steam_price_eur" | "steam_net"
-  | "item_multiplier" | "status" | "last_synced_at";
+  | "item_multiplier" | "status" | "status_updated_at" | "last_synced_at";
 
 function colValue(item: CaseOpeningItem, col: SortCol): number | string {
   switch (col) {
@@ -44,6 +44,7 @@ function colValue(item: CaseOpeningItem, col: SortCol): number | string {
     case "steam_net": return item.steam_price_eur != null ? item.steam_price_eur / 1.15 : -1;
     case "item_multiplier": return item.item_multiplier ?? -1;
     case "status": return item.status;
+    case "status_updated_at": return item.status_updated_at ?? "";
     case "last_synced_at": return item.last_synced_at ?? "";
   }
 }
@@ -116,40 +117,70 @@ function ItemDeleteButton({ sessionId, index }: { sessionId: string; index: numb
 }
 
 function StatusCell({ item, sessionId }: { item: CaseOpeningItem; sessionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [draftStatus, setDraftStatus] = useState<ItemStatus>(item.status);
+  const [draftMarket, setDraftMarket] = useState<ItemMarketplace | "">(item.marketplace ?? "");
   const { mutate, isPending } = useUpdateCaseOpeningItemStatus(sessionId);
 
-  const handleStatus = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    mutate({ itemId: item.id, status: e.target.value as ItemStatus, marketplace: item.marketplace });
+  const handleOpen = () => {
+    setDraftStatus(item.status);
+    setDraftMarket(item.marketplace ?? "");
+    setOpen(true);
   };
-  const handleMarketplace = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value as ItemMarketplace | "";
-    mutate({ itemId: item.id, status: item.status, marketplace: val || null });
+
+  const handleAccept = () => {
+    mutate(
+      { itemId: item.id, status: draftStatus, marketplace: draftMarket || null },
+      { onSuccess: () => setOpen(false) },
+    );
   };
 
   return (
-    <td className="px-2 py-1.5 text-center" colSpan={2}>
-      <div className="flex items-center gap-1 justify-center">
-        <select
-          value={item.status}
-          onChange={handleStatus}
-          disabled={isPending}
-          className={`bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[11px] focus:outline-none focus:border-zinc-500 disabled:opacity-50 ${statusColor(item.status)}`}
-        >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s.replace("_", " ")}</option>
-          ))}
-        </select>
-        <select
-          value={item.marketplace ?? ""}
-          onChange={handleMarketplace}
-          disabled={isPending}
-          className="bg-zinc-900 border border-zinc-700 rounded px-1 py-0.5 text-[11px] text-zinc-400 focus:outline-none focus:border-zinc-500 disabled:opacity-50"
-        >
-          {MARKETPLACE_OPTIONS.map((m) => (
-            <option key={m} value={m}>{m || "—"}</option>
-          ))}
-        </select>
-      </div>
+    <td className="px-2 py-1.5 relative">
+      <button
+        onClick={handleOpen}
+        className={`text-[11px] hover:underline ${statusColor(item.status)}`}
+      >
+        {item.status.replace("_", " ")}
+        {item.marketplace && <span className="text-zinc-500 ml-1">({item.marketplace})</span>}
+      </button>
+      {open && (
+        <div className="absolute z-20 left-0 top-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl p-3 min-w-[170px] flex flex-col gap-2">
+          <select
+            value={draftStatus}
+            onChange={(e) => setDraftStatus(e.target.value as ItemStatus)}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>{s.replace("_", " ")}</option>
+            ))}
+          </select>
+          <select
+            value={draftMarket}
+            onChange={(e) => setDraftMarket(e.target.value as ItemMarketplace | "")}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-400 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="">No marketplace</option>
+            <option value="steam">Steam</option>
+            <option value="csfloat">CSFloat</option>
+          </select>
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleAccept}
+              disabled={isPending}
+              className="flex-1 px-2 py-1 text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50 transition-colors"
+            >
+              {isPending ? "…" : "Accept"}
+            </button>
+            <button
+              onClick={() => setOpen(false)}
+              className="px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </td>
   );
 }
@@ -173,6 +204,9 @@ function ItemRow({
         {item.item_multiplier != null ? item.item_multiplier.toFixed(3) + "x" : "—"}
       </td>
       <StatusCell item={item} sessionId={sessionId} />
+      <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
+        {relativeTime(item.status_updated_at)}
+      </td>
       <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
         {item.last_synced_at ? relativeTime(item.last_synced_at) : "—"}
       </td>
@@ -359,7 +393,8 @@ export default function CaseOpeningDetail() {
                 {thSort("Steam Med €", "steam_price_eur")}
                 {thSort("Steam Net €", "steam_net")}
                 {thSort("Mult", "item_multiplier")}
-                <th className="px-2 py-2 text-center text-zinc-400 font-medium" colSpan={2}>Status / Market</th>
+                {thSort("Status", "status")}
+                {thSort("Changed", "status_updated_at")}
                 {thSort("Synced", "last_synced_at")}
                 <th className="px-2 py-2" />
               </tr>
