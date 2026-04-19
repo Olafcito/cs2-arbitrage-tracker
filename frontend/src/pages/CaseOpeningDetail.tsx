@@ -89,6 +89,7 @@ function ItemEditModal({ item, sessionId, onClose }: {
   const [name, setName] = useState(item.name);
   const [wear, setWear] = useState(item.wear);
   const [floatVal, setFloatVal] = useState(item.float_value?.toString() ?? "");
+  const [stattrak, setStattrak] = useState(item.stattrak);
   const [status, setStatus] = useState<ItemStatus>(item.status);
   const [marketplace, setMarketplace] = useState<ItemMarketplace | "">(item.marketplace ?? "");
 
@@ -96,7 +97,7 @@ function ItemEditModal({ item, sessionId, onClose }: {
   const updateStatus = useUpdateCaseOpeningItemStatus(sessionId);
   const isPending = updateItem.isPending || updateStatus.isPending;
 
-  const propsChanged = name !== item.name || wear !== item.wear ||
+  const propsChanged = name !== item.name || wear !== item.wear || stattrak !== item.stattrak ||
     (floatVal !== "" ? parseFloat(floatVal) !== item.float_value : item.float_value != null);
   const statusChanged = status !== item.status || (marketplace || null) !== (item.marketplace ?? null);
 
@@ -108,6 +109,7 @@ function ItemEditModal({ item, sessionId, onClose }: {
           patch: {
             ...(name !== item.name ? { name } : {}),
             ...(wear !== item.wear ? { wear } : {}),
+            ...(stattrak !== item.stattrak ? { stattrak } : {}),
             ...(floatVal !== "" ? { float_value: parseFloat(floatVal) } : {}),
           },
         });
@@ -163,6 +165,17 @@ function ItemEditModal({ item, sessionId, onClose }: {
           {(name !== item.name || wear !== item.wear) && (
             <p className="text-[10px] text-amber-500">Name/wear changed — prices will be cleared, re-sync after saving.</p>
           )}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStattrak((v) => !v)}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${stattrak ? "border-amber-600 bg-amber-900/40 text-amber-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}
+          >
+            ST™
+          </button>
+          <span className="text-[11px] text-zinc-500">{stattrak ? "StatTrak" : "Normal"}</span>
         </div>
 
         <div className="border-t border-zinc-800 pt-2 flex gap-2">
@@ -249,14 +262,19 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
   const steamNet = item.steam_price_eur != null ? item.steam_price_eur / 1.15 : null;
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
-      <td className="px-2 py-1.5 max-w-[160px] truncate">
-        <button
-          onClick={() => onEdit(item)}
-          title={item.name}
-          className="text-zinc-200 hover:text-emerald-400 transition-colors text-left truncate w-full text-xs"
-        >
-          {item.name}
-        </button>
+      <td className="px-2 py-1.5 max-w-[180px]">
+        <div className="flex items-center gap-1 min-w-0">
+          {item.stattrak && (
+            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] bg-amber-900/50 text-amber-400 border border-amber-800 leading-none">ST™</span>
+          )}
+          <button
+            onClick={() => onEdit(item)}
+            title={item.name}
+            className="text-zinc-200 hover:text-emerald-400 transition-colors text-left truncate text-xs"
+          >
+            {item.name}
+          </button>
+        </div>
       </td>
       <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap text-xs">{item.wear}</td>
       <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{item.float_value?.toFixed(4) ?? "—"}</td>
@@ -277,6 +295,11 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
             <span className="block text-zinc-500 text-[10px]">{item.marketplace}</span>
           )}
         </button>
+      </td>
+      <td className="px-2 py-1.5 text-center text-[13px]">
+        {item.created_at
+          ? (Date.now() - new Date(item.created_at).getTime() > 7 * 24 * 60 * 60 * 1000 ? "✅" : "❌")
+          : "—"}
       </td>
       <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
         {item.created_at ? relativeTime(item.created_at) : "—"}
@@ -312,6 +335,7 @@ export default function CaseOpeningDetail() {
   const [itemName, setItemName] = useState("");
   const [wear, setWear] = useState("Field-Tested");
   const [floatVal, setFloatVal] = useState("");
+  const [stattrak, setStattrak] = useState(false);
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("name");
@@ -330,8 +354,8 @@ export default function CaseOpeningDetail() {
     e.preventDefault();
     if (!itemName.trim()) return;
     addItem.mutate(
-      { name: itemName.trim(), wear, float_value: floatVal ? parseFloat(floatVal) : null },
-      { onSuccess: () => { setItemName(""); setFloatVal(""); } },
+      { name: itemName.trim(), wear, float_value: floatVal ? parseFloat(floatVal) : null, stattrak },
+      { onSuccess: () => { setItemName(""); setFloatVal(""); setStattrak(false); } },
     );
   };
 
@@ -476,7 +500,8 @@ export default function CaseOpeningDetail() {
                 {thSort(`Steam Net`, "steam_net")}
                 {thSort("Mult", "item_multiplier")}
                 {thSort("Status", "status")}
-                {thSort("Added", "created_at")}
+                <th className="px-2 py-2 text-center text-zinc-400 font-medium whitespace-nowrap">Trade</th>
+                {thSort("Created At", "created_at")}
                 {thSort("Last Updated", "status_updated_at")}
                 {thSort("Synced", "last_synced_at")}
                 <th className="px-2 py-2" />
@@ -528,8 +553,18 @@ export default function CaseOpeningDetail() {
             placeholder="0.1234"
             className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28" />
         </div>
+        <div className="flex flex-col gap-1 justify-end">
+          <label className="text-[11px] text-zinc-500">StatTrak</label>
+          <button
+            type="button"
+            onClick={() => setStattrak((v) => !v)}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${stattrak ? "border-amber-600 bg-amber-900/40 text-amber-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}
+          >
+            ST™
+          </button>
+        </div>
         <button type="submit" disabled={addItem.isPending || !itemName.trim()}
-          className="px-3 py-1 text-xs rounded border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 disabled:opacity-40 transition-colors">
+          className="px-3 py-1 text-xs rounded border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 disabled:opacity-40 transition-colors self-end">
           {addItem.isPending ? <Spinner size={12} /> : "Add Item"}
         </button>
       </form>

@@ -144,6 +144,7 @@ export interface CaseOpeningItem {
   csf_realized_eur: number | null;
   steam_price_eur: number | null;
   item_multiplier: number | null;
+  stattrak: boolean;
   status: ItemStatus;
   marketplace: ItemMarketplace | null;
   status_updated_at: string;
@@ -197,4 +198,5 @@ export interface CaseOpeningItemInput {
   name: string;
   wear: string;
   float_value?: number | null;
+  stattrak?: boolean;
 }
