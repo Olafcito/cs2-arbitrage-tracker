@@ -172,6 +172,7 @@ def add_item(session_id: str, inp: CaseOpeningItemInput) -> CaseOpening | None:
         name=inp.name,
         wear=inp.wear,
         float_value=inp.float_value,
+        stattrak=inp.stattrak,
         status="opened",
         status_updated_at=now,
         status_history=[StatusEvent(status="opened", changed_at=now)],
@@ -248,10 +249,13 @@ def update_item(session_id: str, item_id: str, patch: CaseOpeningItemPatch) -> C
         updates["wear"] = patch.wear
     if patch.float_value is not None:
         updates["float_value"] = patch.float_value
+    if patch.stattrak is not None:
+        updates["stattrak"] = patch.stattrak
     # If the market hash name changed, stale prices are misleading — clear them
     name_changed = patch.name is not None and patch.name != item.name
     wear_changed = patch.wear is not None and patch.wear != item.wear
-    if name_changed or wear_changed:
+    stattrak_changed = patch.stattrak is not None and patch.stattrak != item.stattrak
+    if name_changed or wear_changed or stattrak_changed:
         updates.update({
             "csf_price_eur": None,
             "csf_realized_eur": None,
@@ -275,13 +279,15 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
 
     item = session.items[index]
     rate = fetch_exchange_rate()
-    market_hash_name = f"{item.name} ({item.wear})"
+    prefix = "StatTrak\u2122 " if item.stattrak else ""
+    market_hash_name = f"{prefix}{item.name} ({item.wear})"
 
     # Use buy_now listings sorted by lowest price; apply 2% discount to get target buy price
     csf_usd = csfloat_fetch(
         market_hash_name,
         listing_type="buy_now",
         sort_by="lowest_price",
+        category=2 if item.stattrak else None,
         min_float=item.float_value,
         price_discount=_CSF_PRICE_DISCOUNT,
     )
