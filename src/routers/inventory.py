@@ -2,36 +2,31 @@
 
 from fastapi import APIRouter, HTTPException
 
-from src.models.inventory import InventorySnapshot
-from src.services.inventory import fetch_inventory, get_snapshot
+from src.models.inventory import InventoryResponse
+from src.services.inventory import fetch_inventory, get_inventory_response
 
 router = APIRouter(prefix="/inventory", tags=["Inventory"])
 
 
-@router.get("", response_model=InventorySnapshot)
-def get_inventory() -> InventorySnapshot:
-    """Return the cached inventory snapshot.
+@router.get("", response_model=InventoryResponse)
+def get_inventory() -> InventoryResponse:
+    """Return cached inventory snapshot + usage info.
 
-    Does NOT call the SteamWebAPI — use POST /inventory/sync to refresh.
-    Returns 404 if no snapshot has been fetched yet.
+    Does NOT call the SteamWebAPI. Use POST /inventory/sync to refresh.
+    Returns a response with snapshot=null if no sync has been done yet.
     """
-    snapshot = get_snapshot()
-    if snapshot is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No inventory snapshot found. Use POST /inventory/sync to fetch.",
-        )
-    return snapshot
+    return get_inventory_response()
 
 
-@router.post("/sync", response_model=InventorySnapshot)
-def sync_inventory() -> InventorySnapshot:
-    """Fetch live inventory from SteamWebAPI and update the cache.
+@router.post("/sync", response_model=InventoryResponse)
+def sync_inventory() -> InventoryResponse:
+    """Fetch live inventory from SteamWebAPI, update cache, and return result.
 
-    WARNING: Consumes one API call against the monthly rate limit
-    (free tier: 5/month). Only call this when you explicitly want a refresh.
+    WARNING: Consumes one call against the monthly rate limit (free tier: 5/month).
+    Only call this when you explicitly want a refresh.
+    Returns 503 if API keys are missing or monthly limit is exhausted.
     """
     try:
         return fetch_inventory()
-    except ValueError as exc:
+    except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
