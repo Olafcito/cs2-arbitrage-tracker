@@ -80,7 +80,11 @@ def _load(session_id: str) -> CaseOpening | None:
     p = _path(session_id)
     if not p.exists():
         return None
-    return CaseOpening.model_validate(json.loads(p.read_text(encoding="utf-8")))
+    data = json.loads(p.read_text(encoding="utf-8"))
+    # Backfill for sessions created before last_event_at was added
+    if "last_event_at" not in data:
+        data["last_event_at"] = data.get("created_at", datetime.now(timezone.utc).isoformat())
+    return CaseOpening.model_validate(data)
 
 
 def _save(session: CaseOpening) -> None:
@@ -111,6 +115,7 @@ def list_sessions() -> list[CaseOpeningSummary]:
             multiplier=raw.multiplier,
             csf_roi=computed.csf_roi,
             steam_roi=computed.steam_roi,
+            last_event_at=raw.last_event_at,
         ))
     return summaries
 
@@ -123,13 +128,15 @@ def get_session(session_id: str) -> CaseOpening | None:
 
 
 def create_session(inp: CaseOpeningCreate) -> CaseOpening:
+    now = datetime.now(timezone.utc)
     session = CaseOpening(
         id=str(uuid.uuid4()),
         name=inp.name,
         date=inp.date,
         unbox_price=inp.unbox_price,
         multiplier=inp.multiplier,
-        created_at=datetime.now(timezone.utc),
+        created_at=now,
+        last_event_at=now,
     )
     _save(session)
     logger.info("Created session %s (%s)", session.id, session.name)
@@ -168,7 +175,7 @@ def add_item(session_id: str, inp: CaseOpeningItemInput) -> CaseOpening | None:
         status_updated_at=now,
         status_history=[StatusEvent(status="opened", changed_at=now)],
     )
-    updated = session.model_copy(update={"items": [*session.items, item]})
+    updated = session.model_copy(update={"items": [*session.items, item], "last_event_at": now})
     _save(updated)
     logger.info("Added item '%s' to session %s — triggering sync", inp.name, session_id)
     # Auto-sync the newly added item
@@ -214,7 +221,7 @@ def update_item_status(
         "status_history": [*item.status_history, event],
     })
     items = [updated_item if i == idx else it for i, it in enumerate(session.items)]
-    updated = session.model_copy(update={"items": items})
+    updated = session.model_copy(update={"items": items, "last_event_at": now})
     _save(updated)
     logger.info(
         "Item %s in session %s: status → %s (marketplace: %s)",

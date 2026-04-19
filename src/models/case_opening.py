@@ -50,6 +50,7 @@ class CaseOpening(ArbitrageBase):
     multiplier: float = 1.0
     items: list[CaseOpeningItem] = []
     created_at: datetime
+    last_event_at: datetime
 
     # Computed on read
     csf_roi: float | None = None
@@ -68,6 +69,7 @@ class CaseOpeningSummary(ArbitrageBase):
     multiplier: float
     csf_roi: float | None = None
     steam_roi: float | None = None
+    last_event_at: datetime
 
 
 class CaseOpeningCreate(BaseModel):

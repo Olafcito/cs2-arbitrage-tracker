@@ -119,7 +119,9 @@ export default function CaseOpenings() {
                     <h2 className="text-sm font-semibold text-zinc-100 truncate group-hover:text-white transition-colors">
                       {s.name}
                     </h2>
-                    <p className="text-[11px] text-zinc-500 mt-0.5">{s.date}</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">
+                      {new Date(s.last_event_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                    </p>
                   </div>
                   <ChevronRight size={14} className="text-zinc-600 group-hover:text-zinc-400 shrink-0 mt-0.5 transition-colors" />
                 </div>
