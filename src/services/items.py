@@ -1,10 +1,13 @@
 """Service: tracked item CRUD with automatic price resolution."""
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 from src.config import PROJECT_DIR
+
+logger = logging.getLogger(__name__)
 from src.models.item import ArbitrageItem, CaseType, SkinType
 from src.services.cases import find_case_by_name
 from src.services.csfloat import fetch_lowest_price as csfloat_fetch
@@ -87,7 +90,7 @@ def add_item(name: str) -> ArbitrageItem:
     items = [i for i in items if i.name.lower() != name.lower()]
     items.append(item)
     _save(items)
-
+    logger.info("Tracked item added: '%s' (source: %s)", name, item.price_source)
     return item
 
 
