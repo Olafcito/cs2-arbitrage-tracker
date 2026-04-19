@@ -35,8 +35,21 @@ cp .env.example .env
 | Variable | Where to get it |
 |----------|-----------------|
 | `CSFLOAT_API_KEY` | [csfloat.com/profile](https://csfloat.com/profile) → Developer tab |
+| `steamwebapi_key` | [steamwebapi.com](https://www.steamwebapi.com) → account dashboard |
+| `steam_id` | Your 64-bit Steam ID (e.g. `76561198023394152`) |
 
 The app runs without a CSFloat key — live price syncing falls back to CSROI data.
+
+### SteamWebAPI rate limits (free tier)
+
+| Endpoint | Per minute | Per day | Per month |
+|----------|-----------|---------|-----------|
+| Inventory | 2 | 5 | **5** |
+| Global | 2 | 5 | 10 |
+| Items | 0 | 0 | 0 |
+| Assets | 5 | 5 | 5 |
+
+`POST /inventory/sync` burns one monthly Inventory call. The cached snapshot is served from `data/inventory.json` by `GET /inventory` without any API calls.
 
 ---
 
@@ -162,6 +175,8 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | POST | `/groups/{id}/sync` | Sync all items in group (202) |
 | GET | `/case-openings` | List case opening sessions |
 | POST | `/case-openings` | Create session |
+| GET | `/inventory` | Cached inventory snapshot (no API call) |
+| POST | `/inventory/sync` | Fetch live inventory from Steam ⚠️ burns monthly limit |
 | GET | `/case-openings/{id}` | Session detail with ROI stats |
 | PATCH | `/case-openings/{id}` | Update session metadata |
 | DELETE | `/case-openings/{id}` | Delete session |
@@ -180,3 +195,4 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | `data/scenarios/` | Saved buy-order scenarios |
 | `data/groups.json` | Item groups |
 | `data/case_openings/{id}.json` | Case opening sessions (one file per session) |
+| `data/inventory.json` | Last Steam inventory snapshot |
