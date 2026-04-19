@@ -174,6 +174,7 @@ export interface CaseOpeningSummary {
   multiplier: number;
   csf_roi: number | null;
   steam_roi: number | null;
+  last_event_at: string;
 }
 
 export interface CaseOpeningCreate {

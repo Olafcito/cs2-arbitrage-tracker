@@ -2,6 +2,8 @@
 
 import logging
 import logging.config
+import logging.handlers
+from pathlib import Path
 
 import requests
 from fastapi import APIRouter, FastAPI, Request
@@ -15,25 +17,51 @@ from src.services.steam import get_rate_limit_status, SteamRateLimitError
 # Logging — simple console output with timestamps
 # ---------------------------------------------------------------------------
 
+_LOG_DIR = Path(__file__).parent.parent / "logs"
+_LOG_DIR.mkdir(exist_ok=True)
+
 logging.config.dictConfig({
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {
-        "default": {
+        "detailed": {
+            "format": "%(asctime)s %(levelname)-8s %(name)s [%(filename)s:%(lineno)d] — %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+        "simple": {
             "format": "%(asctime)s %(levelname)-8s %(name)s — %(message)s",
             "datefmt": "%Y-%m-%d %H:%M:%S",
-        }
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "default",
-        }
+            "formatter": "simple",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(_LOG_DIR / "app.log"),
+            "maxBytes": 5_000_000,
+            "backupCount": 3,
+            "formatter": "detailed",
+            "encoding": "utf-8",
+        },
+        "file_errors": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": str(_LOG_DIR / "errors.log"),
+            "maxBytes": 2_000_000,
+            "backupCount": 5,
+            "level": "ERROR",
+            "formatter": "detailed",
+            "encoding": "utf-8",
+        },
     },
-    "root": {"level": "INFO", "handlers": ["console"]},
+    "root": {"level": "INFO", "handlers": ["console", "file", "file_errors"]},
     "loggers": {
         "src": {"level": "DEBUG", "propagate": True},
-        "uvicorn.access": {"level": "WARNING", "propagate": True},
+        "uvicorn.access": {"level": "INFO", "propagate": True},
+        "watchfiles": {"level": "CRITICAL", "propagate": False},
+        "watchfiles.main": {"level": "CRITICAL", "propagate": False},
     },
 })
 
@@ -114,4 +142,4 @@ app.include_router(utility_router)
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True, reload_dirs=["src"])
