@@ -41,3 +41,13 @@ STEAM_PRICE_OVERVIEW_URL = (
 
 CSFLOAT_API_KEY: str = os.getenv("CSFLOAT_API_KEY", "")
 CSFLOAT_BASE_URL: str = "https://csfloat.com/api/v1"
+
+# ---------------------------------------------------------------------------
+# SteamWebAPI  (https://www.steamwebapi.com)
+# Rate limits (free tier): Inventory 2/min · 5/day · 5/month
+#                          Global    2/min · 5/day · 10/month
+# ---------------------------------------------------------------------------
+
+STEAMWEBAPI_KEY: str = os.getenv("steamwebapi_key", "")
+STEAM_ID: str = os.getenv("steam_id", "")
+STEAMWEBAPI_BASE_URL: str = "https://www.steamwebapi.com/steam/api"
