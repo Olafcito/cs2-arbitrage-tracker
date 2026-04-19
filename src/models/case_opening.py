@@ -39,6 +39,7 @@ class CaseOpeningItem(ArbitrageBase):
     status_updated_at: datetime = Field(default_factory=lambda: datetime.now(dt.timezone.utc))
     status_history: list[StatusEvent] = Field(default_factory=list)
 
+    created_at: datetime | None = None
     last_synced_at: datetime | None = None
 
 
