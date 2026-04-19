@@ -95,3 +95,9 @@ class CaseOpeningItemInput(BaseModel):
 class CaseOpeningItemStatusPatch(BaseModel):
     status: ItemStatus
     marketplace: ItemMarketplace | None = None
+
+
+class CaseOpeningItemPatch(BaseModel):
+    name: str | None = None
+    wear: str | None = None
+    float_value: float | None = None

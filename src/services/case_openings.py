@@ -12,6 +12,7 @@ from src.models.case_opening import (
     CaseOpeningCreate,
     CaseOpeningItem,
     CaseOpeningItemInput,
+    CaseOpeningItemPatch,
     CaseOpeningItemStatusPatch,
     CaseOpeningPatch,
     CaseOpeningSummary,
@@ -227,6 +228,42 @@ def update_item_status(
         "Item %s in session %s: status → %s (marketplace: %s)",
         item_id, session_id, patch.status, patch.marketplace,
     )
+    return _compute_rois(updated)
+
+
+def update_item(session_id: str, item_id: str, patch: CaseOpeningItemPatch) -> CaseOpening | None:
+    """Edit name, wear, or float of a specific item. Clears prices if market hash changes."""
+    session = _load(session_id)
+    if session is None:
+        return None
+    idx = next((i for i, item in enumerate(session.items) if item.id == item_id), None)
+    if idx is None:
+        return None
+    item = session.items[idx]
+    updates: dict = {}
+    if patch.name is not None:
+        updates["name"] = patch.name
+    if patch.wear is not None:
+        updates["wear"] = patch.wear
+    if patch.float_value is not None:
+        updates["float_value"] = patch.float_value
+    # If the market hash name changed, stale prices are misleading — clear them
+    name_changed = patch.name is not None and patch.name != item.name
+    wear_changed = patch.wear is not None and patch.wear != item.wear
+    if name_changed or wear_changed:
+        updates.update({
+            "csf_price_eur": None,
+            "csf_realized_eur": None,
+            "steam_price_eur": None,
+            "item_multiplier": None,
+            "last_synced_at": None,
+        })
+    now = datetime.now(timezone.utc)
+    updated_item = item.model_copy(update=updates)
+    items = [updated_item if i == idx else it for i, it in enumerate(session.items)]
+    updated = session.model_copy(update={"items": items, "last_event_at": now})
+    _save(updated)
+    logger.info("Updated item %s in session %s: %s", item_id, session_id, updates.keys())
     return _compute_rois(updated)
 
 

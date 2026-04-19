@@ -22,6 +22,9 @@ export const fmt = {
     return `${sign}€${n.toFixed(2)}`;
   },
 
+  cur: (n: number | null | undefined, symbol: string) =>
+    n == null ? dash : `${symbol}${n.toFixed(2)}`,
+
   ratio: (n: number | null | undefined) =>
     n == null ? dash : n.toFixed(3),
 };

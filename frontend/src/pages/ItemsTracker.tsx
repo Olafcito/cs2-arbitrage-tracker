@@ -4,7 +4,9 @@ import { useDeleteItem, useItems, useSyncAllItems, useSyncItem } from "../hooks/
 import AddItemForm from "../components/forms/AddItemForm";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
-import { fmt, multiplierClass, profitClass, relativeTime } from "../utils/format";
+import { fmt, multiplierClass, relativeTime } from "../utils/format";
+import { useCurrency } from "../context/CurrencyContext";
+import { useExchangeRate } from "../hooks/useExchangeRate";
 import type { ArbitrageItem } from "../types/api";
 
 type SortCol =
@@ -16,8 +18,6 @@ type SortCol =
   | "median"
   | "volume"
   | "multiplier"
-  | "profit"
-  | "balance"
   | "last_synced_at";
 
 function getValue(item: ArbitrageItem, col: SortCol): number | string {
@@ -30,8 +30,6 @@ function getValue(item: ArbitrageItem, col: SortCol): number | string {
     case "median": return item.steam_price?.median_price_eur ?? -1;
     case "volume": return item.steam_price?.volume_24h ?? -1;
     case "multiplier": return item.multiplier;
-    case "profit": return item.profit_per_100_eur;
-    case "balance": return item.steam_balance_per_100_eur;
     case "last_synced_at": return item.last_synced_at ?? "";
   }
 }
@@ -78,6 +76,11 @@ function SourceBadge({ source }: { source: "csroi" | "markets" }) {
 export default function ItemsTracker() {
   const { data: items, isLoading, error } = useItems();
   const syncAll = useSyncAllItems();
+  const { convert, symbol } = useCurrency();
+  const { data: rateData } = useExchangeRate();
+  const rate = rateData?.rate ?? 1;
+  const cv = (v: number | null | undefined) => convert(v, rate);
+
   const [sortCol, setSortCol] = useState<SortCol>("multiplier");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
@@ -150,14 +153,10 @@ export default function ItemsTracker() {
         </div>
       )}
 
-      {error && (
-        <ErrorBanner message={(error as Error).message} />
-      )}
+      {error && <ErrorBanner message={(error as Error).message} />}
 
       {!isLoading && sorted.length === 0 && !error && (
-        <p className="text-zinc-600 text-xs mt-6">
-          No items tracked yet. Add one above.
-        </p>
+        <p className="text-zinc-600 text-xs mt-6">No items tracked yet. Add one above.</p>
       )}
 
       {sorted.length > 0 && (
@@ -166,15 +165,13 @@ export default function ItemsTracker() {
             <thead>
               <tr className="border-b border-zinc-800 bg-zinc-900">
                 {th("Name", "name", "text-left")}
-                {th("CSF EUR", "csf_price_eur")}
+                {th(`CSF`, "csf_price_eur")}
                 {th("+Fee", "csf_cost_with_fee_eur")}
-                {th("Steam EUR", "steam_price_eur")}
-                {th("Low EUR", "lowest")}
-                {th("Med EUR", "median")}
+                {th("Steam", "steam_price_eur")}
+                {th("Low", "lowest")}
+                {th("Med", "median")}
                 {th("Vol 24h", "volume")}
                 {th("Mult", "multiplier")}
-                {th("Profit/€100", "profit")}
-                {th("Bal/€100", "balance")}
                 {th("Last Synced", "last_synced_at", "text-left")}
                 <th className="px-2 py-2" />
               </tr>
@@ -202,19 +199,15 @@ export default function ItemsTracker() {
                       <ExternalLink size={10} className="text-zinc-600 shrink-0" />
                     </div>
                   </td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.csf_price_eur)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(item.csf_cost_with_fee_eur)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.steam_price_eur)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.steam_price?.lowest_price_eur)}</td>
-                  <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.eur(item.steam_price?.median_price_eur)}</td>
+                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.cur(cv(item.csf_price_eur), symbol)}</td>
+                  <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.cur(cv(item.csf_cost_with_fee_eur), symbol)}</td>
+                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.cur(cv(item.steam_price_eur), symbol)}</td>
+                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.cur(cv(item.steam_price?.lowest_price_eur), symbol)}</td>
+                  <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.cur(cv(item.steam_price?.median_price_eur), symbol)}</td>
                   <td className="px-2 py-1.5 text-right text-zinc-400">{fmt.int(item.steam_price?.volume_24h)}</td>
                   <td className={`px-2 py-1.5 text-right font-medium ${multiplierClass(item.multiplier)}`}>
                     {fmt.mult(item.multiplier)}
                   </td>
-                  <td className={`px-2 py-1.5 text-right ${profitClass(item.profit_per_100_eur)}`}>
-                    {fmt.profit(item.profit_per_100_eur)}
-                  </td>
-                  <td className="px-2 py-1.5 text-right text-zinc-300">{fmt.eur(item.steam_balance_per_100_eur)}</td>
                   <td className="px-2 py-1.5 text-left whitespace-nowrap">
                     <div className="flex items-center gap-1">
                       <SourceBadge source={item.price_source} />
