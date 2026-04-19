@@ -145,6 +145,8 @@ export interface CaseOpeningItem {
   steam_price_eur: number | null;
   item_multiplier: number | null;
   stattrak: boolean;
+  rarity: number | null;
+  icon_url: string | null;
   status: ItemStatus;
   marketplace: ItemMarketplace | null;
   status_updated_at: string;

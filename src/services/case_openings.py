@@ -18,7 +18,7 @@ from src.models.case_opening import (
     CaseOpeningSummary,
     StatusEvent,
 )
-from src.services.csfloat import fetch_lowest_price as csfloat_fetch
+from src.services.csfloat import fetch_listing_data
 from src.services.steam import SteamRateLimitError, fetch_price_overview
 from src.utils import fetch_exchange_rate
 
@@ -282,16 +282,13 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     prefix = "StatTrak\u2122 " if item.stattrak else ""
     market_hash_name = f"{prefix}{item.name} ({item.wear})"
 
-    # Use buy_now listings sorted by lowest price; apply 2% discount to get target buy price
-    csf_usd = csfloat_fetch(
+    listing = fetch_listing_data(
         market_hash_name,
-        listing_type="buy_now",
-        sort_by="lowest_price",
         category=2 if item.stattrak else None,
         min_float=item.float_value,
         price_discount=_CSF_PRICE_DISCOUNT,
     )
-    csf_eur = csf_usd * rate if csf_usd is not None else item.csf_price_eur
+    csf_eur = listing.price_usd * rate if listing is not None else item.csf_price_eur
 
     steam = fetch_price_overview(market_hash_name)
     # Use median price — more stable than lowest for sell-side decisions
@@ -300,6 +297,8 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     synced_item = item.model_copy(update={
         "csf_price_eur": csf_eur,
         "steam_price_eur": steam_eur,
+        "rarity": listing.rarity if listing is not None else item.rarity,
+        "icon_url": listing.icon_url if listing is not None else item.icon_url,
         "last_synced_at": datetime.now(timezone.utc),
     })
     items = [synced_item if j == index else i for j, i in enumerate(session.items)]
