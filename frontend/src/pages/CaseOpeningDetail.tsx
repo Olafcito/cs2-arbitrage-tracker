@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { RefreshCw, Trash2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   useAddCaseOpeningItem,
   useCaseOpening,
@@ -80,6 +80,96 @@ function SortTh({ label, col, active, dir, onToggle, align = "text-right" }: {
         {col === active ? (dir === "asc" ? "↑" : "↓") : "↕"}
       </span>
     </th>
+  );
+}
+
+function ItemAddModal({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [wear, setWear] = useState("Field-Tested");
+  const [floatVal, setFloatVal] = useState("");
+  const [stattrak, setStattrak] = useState(false);
+  const addItem = useAddCaseOpeningItem(sessionId);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    addItem.mutate(
+      { name: name.trim(), wear, float_value: floatVal ? parseFloat(floatVal) : null, stattrak },
+      { onSuccess: onClose },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-zinc-900 border border-emerald-800/50 rounded-xl shadow-2xl p-5 w-80 flex flex-col gap-3">
+        <h3 className="text-sm font-semibold text-zinc-100">Add Item</h3>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Name</label>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="AK-47 | Redline"
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+          />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Wear</label>
+          <select
+            value={wear}
+            onChange={(e) => setWear(e.target.value)}
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            {WEAR_OPTIONS.map((w) => <option key={w}>{w}</option>)}
+          </select>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label className="text-[11px] text-zinc-500">Float (optional)</label>
+          <input
+            type="number" step="0.0001" min="0" max="1"
+            value={floatVal}
+            onChange={(e) => setFloatVal(e.target.value)}
+            placeholder="0.1234"
+            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+          />
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStattrak((v) => !v)}
+            className={`px-2 py-1 text-xs rounded border transition-colors ${stattrak ? "border-amber-600 bg-amber-900/40 text-amber-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}
+          >
+            ST™
+          </button>
+          <span className="text-[11px] text-zinc-500">{stattrak ? "StatTrak" : "Normal"}</span>
+        </div>
+
+        {addItem.isError && (
+          <p className="text-xs text-red-400">Failed to add item — check backend logs.</p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={handleSubmit}
+            disabled={addItem.isPending || !name.trim()}
+            className="flex-1 px-3 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 text-white disabled:opacity-50 transition-colors"
+          >
+            {addItem.isPending ? "Adding…" : "Add Item"}
+          </button>
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors"
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -323,7 +413,6 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
 export default function CaseOpeningDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: session, isLoading, error } = useCaseOpening(id!);
-  const addItem = useAddCaseOpeningItem(id!);
   const syncSession = useSyncCaseOpening(id!);
   const updateSession = useUpdateCaseOpening(id!);
 
@@ -332,15 +421,12 @@ export default function CaseOpeningDetail() {
   const rate = rateData?.rate ?? 1;
   const cv = (v: number | null | undefined) => convert(v, rate);
 
-  const [itemName, setItemName] = useState("");
-  const [wear, setWear] = useState("Field-Tested");
-  const [floatVal, setFloatVal] = useState("");
-  const [stattrak, setStattrak] = useState(false);
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingItem, setEditingItem] = useState<CaseOpeningItem | null>(null);
+  const [addingItem, setAddingItem] = useState(false);
 
   const [editingUnbox, setEditingUnbox] = useState(false);
   const [editingMult, setEditingMult] = useState(false);
@@ -349,15 +435,6 @@ export default function CaseOpeningDetail() {
 
   if (isLoading) return <div className="flex items-center gap-2 text-zinc-500 text-xs"><Spinner /> Loading…</div>;
   if (error || !session) return <ErrorBanner message={(error as Error)?.message ?? "Session not found"} />;
-
-  const handleAddItem = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!itemName.trim()) return;
-    addItem.mutate(
-      { name: itemName.trim(), wear, float_value: floatVal ? parseFloat(floatVal) : null, stattrak },
-      { onSuccess: () => { setItemName(""); setFloatVal(""); setStattrak(false); } },
-    );
-  };
 
   const handleSyncAll = () => {
     setRateLimitMsg(null);
@@ -396,6 +473,13 @@ export default function CaseOpeningDetail() {
         <h1 className="text-sm font-bold text-zinc-100">{session.name}</h1>
         <div className="flex items-center gap-2">
           <span className="text-xs text-zinc-500">{session.date}</span>
+          <button
+            onClick={() => setAddingItem(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-emerald-700 bg-emerald-900/30 text-emerald-400 hover:bg-emerald-800/40 hover:text-emerald-300 transition-colors"
+          >
+            <Plus size={11} />
+            Add Item
+          </button>
           <button
             onClick={handleSyncAll}
             disabled={syncSession.isSyncing}
@@ -525,51 +609,15 @@ export default function CaseOpeningDetail() {
       )}
 
       {session.items.length === 0 && (
-        <p className="text-zinc-600 text-xs mb-4">No items yet. Add one below.</p>
+        <p className="text-zinc-600 text-xs mb-4">No items yet — use the Add Item button above.</p>
       )}
 
-      {/* Add item form */}
-      <form onSubmit={handleAddItem} className="flex flex-wrap gap-2 items-end">
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500">Item name</label>
-          <input
-            value={itemName}
-            onChange={(e) => setItemName(e.target.value)}
-            placeholder="AK-47 | Redline"
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-56"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500">Wear</label>
-          <select value={wear} onChange={(e) => setWear(e.target.value)}
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500">
-            {WEAR_OPTIONS.map((w) => <option key={w}>{w}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500">Float (optional)</label>
-          <input type="number" step="0.0001" min="0" max="1" value={floatVal}
-            onChange={(e) => setFloatVal(e.target.value)}
-            placeholder="0.1234"
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-28" />
-        </div>
-        <div className="flex flex-col gap-1 justify-end">
-          <label className="text-[11px] text-zinc-500">StatTrak</label>
-          <button
-            type="button"
-            onClick={() => setStattrak((v) => !v)}
-            className={`px-2 py-1 text-xs rounded border transition-colors ${stattrak ? "border-amber-600 bg-amber-900/40 text-amber-400" : "border-zinc-700 text-zinc-500 hover:border-zinc-500"}`}
-          >
-            ST™
-          </button>
-        </div>
-        <button type="submit" disabled={addItem.isPending || !itemName.trim()}
-          className="px-3 py-1 text-xs rounded border border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:border-zinc-500 disabled:opacity-40 transition-colors self-end">
-          {addItem.isPending ? <Spinner size={12} /> : "Add Item"}
-        </button>
-      </form>
+      {/* Add modal */}
+      {addingItem && (
+        <ItemAddModal sessionId={id!} onClose={() => setAddingItem(false)} />
+      )}
 
-      {/* Edit modal — rendered outside the table */}
+      {/* Edit modal */}
       {editingItem && (
         <ItemEditModal
           item={editingItem}
