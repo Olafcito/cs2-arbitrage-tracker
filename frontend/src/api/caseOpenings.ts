@@ -22,3 +22,13 @@ export const syncCaseOpeningItem = (id: string, index: number) =>
   api.post<CaseOpening>(`/case-openings/${id}/items/${index}/sync`, {});
 export const syncCaseOpening = (id: string) =>
   api.post<{ message: string; item_count: number }>(`/case-openings/${id}/sync`, {});
+export const updateCaseOpeningItemStatus = (
+  sessionId: string,
+  itemId: string,
+  status: string,
+  marketplace: string | null,
+) =>
+  api.patch<import("../types/api").CaseOpening>(
+    `/case-openings/${sessionId}/items/${itemId}/status`,
+    { status, marketplace },
+  );

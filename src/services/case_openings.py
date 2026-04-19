@@ -1,6 +1,7 @@
 """Service: case opening session CRUD + item sync."""
 
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, timezone
@@ -11,37 +12,62 @@ from src.models.case_opening import (
     CaseOpeningCreate,
     CaseOpeningItem,
     CaseOpeningItemInput,
+    CaseOpeningItemStatusPatch,
     CaseOpeningPatch,
     CaseOpeningSummary,
+    StatusEvent,
 )
 from src.services.csfloat import fetch_lowest_price as csfloat_fetch
 from src.services.steam import SteamRateLimitError, fetch_price_overview
 from src.utils import fetch_exchange_rate
 
+logger = logging.getLogger(__name__)
+
 _DATA_DIR = PROJECT_DIR / "data" / "case_openings"
+
+# 2% discount applied to CSFloat lowest price when placing a buy order
+_CSF_PRICE_DISCOUNT = 0.98
+# CSFloat seller fee: 2% deducted from your proceeds
+_CSF_SELLER_FEE = 0.98
+# Steam seller fee divisor
+_STEAM_FEE_DIVISOR = 1.15
 
 
 def _path(session_id: str):
     return _DATA_DIR / f"{session_id}.json"
 
 
+def _compute_item_fields(item: CaseOpeningItem) -> CaseOpeningItem:
+    """Compute derived per-item fields from stored prices."""
+    csf_realized = item.csf_price_eur * _CSF_SELLER_FEE if item.csf_price_eur is not None else None
+    if csf_realized is not None and item.steam_price_eur is not None and csf_realized > 0:
+        item_mult = (item.steam_price_eur / _STEAM_FEE_DIVISOR) / csf_realized
+    else:
+        item_mult = None
+    return item.model_copy(update={
+        "csf_realized_eur": csf_realized,
+        "item_multiplier": item_mult,
+    })
+
+
 def _compute_rois(session: CaseOpening) -> CaseOpening:
-    items = session.items
+    items = [_compute_item_fields(i) for i in session.items]
     n = len(items)
     if n == 0 or session.unbox_price <= 0:
-        return session
+        return session.model_copy(update={"items": items})
 
-    csf_values = [i.csf_price_eur for i in items if i.csf_price_eur is not None]
+    csf_realized_values = [i.csf_realized_eur for i in items if i.csf_realized_eur is not None]
     steam_values = [i.steam_price_eur for i in items if i.steam_price_eur is not None]
 
-    total_csf = sum(v * 0.98 for v in csf_values) if csf_values else None
-    total_steam_net = sum(v / 1.15 for v in steam_values) if steam_values else None
+    total_csf = sum(csf_realized_values) if csf_realized_values else None
+    total_steam_net = sum(v / _STEAM_FEE_DIVISOR for v in steam_values) if steam_values else None
 
-    csf_roi = total_csf / session.unbox_price if total_csf is not None else None
+    csf_roi = total_csf / (n * session.unbox_price) if total_csf is not None else None
     steam_roi = total_steam_net / (n * session.unbox_price) if total_steam_net is not None else None
     csf_roi_mult = csf_roi * session.multiplier if csf_roi is not None else None
 
     return session.model_copy(update={
+        "items": items,
         "csf_roi": csf_roi,
         "steam_roi": steam_roi,
         "csf_roi_multiplied": csf_roi_mult,
@@ -70,7 +96,11 @@ def list_sessions() -> list[CaseOpeningSummary]:
         return []
     summaries = []
     for p in sorted(_DATA_DIR.glob("*.json")):
-        raw = CaseOpening.model_validate(json.loads(p.read_text(encoding="utf-8")))
+        try:
+            raw = CaseOpening.model_validate(json.loads(p.read_text(encoding="utf-8")))
+        except Exception:
+            logger.warning("Skipping corrupt session file: %s", p.name)
+            continue
         computed = _compute_rois(raw)
         summaries.append(CaseOpeningSummary(
             id=raw.id,
@@ -102,6 +132,7 @@ def create_session(inp: CaseOpeningCreate) -> CaseOpening:
         created_at=datetime.now(timezone.utc),
     )
     _save(session)
+    logger.info("Created session %s (%s)", session.id, session.name)
     return _compute_rois(session)
 
 
@@ -120,6 +151,7 @@ def delete_session(session_id: str) -> bool:
     if not p.exists():
         return False
     p.unlink()
+    logger.info("Deleted session %s", session_id)
     return True
 
 
@@ -127,10 +159,25 @@ def add_item(session_id: str, inp: CaseOpeningItemInput) -> CaseOpening | None:
     session = _load(session_id)
     if session is None:
         return None
-    item = CaseOpeningItem(name=inp.name, wear=inp.wear, float_value=inp.float_value)
+    now = datetime.now(timezone.utc)
+    item = CaseOpeningItem(
+        name=inp.name,
+        wear=inp.wear,
+        float_value=inp.float_value,
+        status="opened",
+        status_updated_at=now,
+        status_history=[StatusEvent(status="opened", changed_at=now)],
+    )
     updated = session.model_copy(update={"items": [*session.items, item]})
     _save(updated)
-    return _compute_rois(updated)
+    logger.info("Added item '%s' to session %s — triggering sync", inp.name, session_id)
+    # Auto-sync the newly added item
+    index = len(updated.items) - 1
+    try:
+        return sync_item(session_id, index)
+    except Exception as exc:
+        logger.warning("Auto-sync failed for item '%s': %s", inp.name, exc)
+        return _compute_rois(updated)
 
 
 def remove_item(session_id: str, index: int) -> CaseOpening | None:
@@ -143,6 +190,39 @@ def remove_item(session_id: str, index: int) -> CaseOpening | None:
     return _compute_rois(updated)
 
 
+def update_item_status(
+    session_id: str,
+    item_id: str,
+    patch: CaseOpeningItemStatusPatch,
+) -> CaseOpening | None:
+    """Update status and marketplace for a specific item, recording history."""
+    session = _load(session_id)
+    if session is None:
+        return None
+
+    idx = next((i for i, item in enumerate(session.items) if item.id == item_id), None)
+    if idx is None:
+        return None
+
+    item = session.items[idx]
+    now = datetime.now(timezone.utc)
+    event = StatusEvent(status=patch.status, marketplace=patch.marketplace, changed_at=now)
+    updated_item = item.model_copy(update={
+        "status": patch.status,
+        "marketplace": patch.marketplace,
+        "status_updated_at": now,
+        "status_history": [*item.status_history, event],
+    })
+    items = [updated_item if i == idx else it for i, it in enumerate(session.items)]
+    updated = session.model_copy(update={"items": items})
+    _save(updated)
+    logger.info(
+        "Item %s in session %s: status → %s (marketplace: %s)",
+        item_id, session_id, patch.status, patch.marketplace,
+    )
+    return _compute_rois(updated)
+
+
 def sync_item(session_id: str, index: int) -> CaseOpening | None:
     session = _load(session_id)
     if session is None or index < 0 or index >= len(session.items):
@@ -152,11 +232,19 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     rate = fetch_exchange_rate()
     market_hash_name = f"{item.name} ({item.wear})"
 
-    csf_usd = csfloat_fetch(market_hash_name, min_float=item.float_value)
+    # Use buy_now listings sorted by lowest price; apply 2% discount to get target buy price
+    csf_usd = csfloat_fetch(
+        market_hash_name,
+        listing_type="buy_now",
+        sort_by="lowest_price",
+        min_float=item.float_value,
+        price_discount=_CSF_PRICE_DISCOUNT,
+    )
     csf_eur = csf_usd * rate if csf_usd is not None else item.csf_price_eur
 
     steam = fetch_price_overview(market_hash_name)
-    steam_eur = steam.lowest_price_eur if steam.lowest_price_eur is not None else item.steam_price_eur
+    # Use median price — more stable than lowest for sell-side decisions
+    steam_eur = steam.median_price_eur if steam.median_price_eur is not None else item.steam_price_eur
 
     synced_item = item.model_copy(update={
         "csf_price_eur": csf_eur,
@@ -166,6 +254,7 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     items = [synced_item if j == index else i for j, i in enumerate(session.items)]
     updated = session.model_copy(update={"items": items})
     _save(updated)
+    logger.debug("Synced item '%s' in session %s (idx %d)", item.name, session_id, index)
     return _compute_rois(updated)
 
 
@@ -173,9 +262,14 @@ def sync_session_background(session_id: str) -> None:
     session = _load(session_id)
     if session is None:
         return
+    logger.info("Background sync started for session %s (%d items)", session_id, len(session.items))
     for i in range(len(session.items)):
         try:
             sync_item(session_id, i)
-        except (SteamRateLimitError, Exception):
-            pass
+        except SteamRateLimitError:
+            logger.warning("Steam rate limit hit during background sync — stopping at index %d", i)
+            break
+        except Exception as exc:
+            logger.warning("Sync failed for item index %d in session %s: %s", i, session_id, exc)
         time.sleep(3)
+    logger.info("Background sync finished for session %s", session_id)

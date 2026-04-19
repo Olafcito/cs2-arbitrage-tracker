@@ -3,19 +3,42 @@
 from __future__ import annotations
 
 import datetime as dt
+import uuid
 from datetime import date, datetime
+from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.models.base import ArbitrageBase
 
+ItemStatus = Literal["opened", "for_sale", "delisted", "sold"]
+ItemMarketplace = Literal["steam", "csfloat"]
+
+
+class StatusEvent(ArbitrageBase):
+    status: ItemStatus
+    marketplace: ItemMarketplace | None = None
+    changed_at: datetime
+
 
 class CaseOpeningItem(ArbitrageBase):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     name: str
     wear: str
     float_value: float | None = None
+
+    # Prices — populated on sync
     csf_price_eur: float | None = None
+    csf_realized_eur: float | None = None   # csf_price * 0.98 (seller fee)
     steam_price_eur: float | None = None
+    item_multiplier: float | None = None    # steam_net / csf_realized
+
+    # Status lifecycle
+    status: ItemStatus = "opened"
+    marketplace: ItemMarketplace | None = None
+    status_updated_at: datetime = Field(default_factory=lambda: datetime.now(dt.timezone.utc))
+    status_history: list[StatusEvent] = Field(default_factory=list)
+
     last_synced_at: datetime | None = None
 
 
@@ -65,3 +88,8 @@ class CaseOpeningItemInput(BaseModel):
     name: str
     wear: str
     float_value: float | None = None
+
+
+class CaseOpeningItemStatusPatch(BaseModel):
+    status: ItemStatus
+    marketplace: ItemMarketplace | None = None
