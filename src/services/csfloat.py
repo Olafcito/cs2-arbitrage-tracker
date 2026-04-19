@@ -1,6 +1,11 @@
 """CSFloat API client — fetches live listing prices."""
 
+import re
+
 import requests
+
+def _is_stattrak(name: str) -> bool:
+    return bool(re.match(r"^stattrak", name, re.IGNORECASE))
 
 from src.config import CSFLOAT_API_KEY, CSFLOAT_BASE_URL
 
@@ -76,12 +81,14 @@ def fetch_lowest_price(
 
     Applies price_discount as a multiplier (e.g. 0.98 = 2% below market).
     Returns None if no API key configured or no listings found.
+    Automatically sets category=2 for StatTrak items if not overridden.
     """
+    resolved_category = category if category is not None else (2 if _is_stattrak(market_hash_name) else None)
     listings = fetch_listings(
         market_hash_name,
         sort_by=sort_by,
         listing_type=listing_type,
-        category=category,
+        category=resolved_category,
         min_float=min_float,
         max_float=max_float,
         limit=1,

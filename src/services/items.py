@@ -76,6 +76,7 @@ def add_item(name: str) -> ArbitrageItem:
     if steam_price.lowest_price_eur is not None and rate > 0:
         steam_price_usd = steam_price.lowest_price_eur / rate
 
+    now = datetime.now(timezone.utc).isoformat()
     item = build_arbitrage_item(
         name=name,
         csf_price_usd=csf_price_usd,
@@ -84,6 +85,8 @@ def add_item(name: str) -> ArbitrageItem:
         item_type=item_type,
         steam_price=steam_price,
         price_source="markets" if case is None and deal is None else "csroi",
+        created_at=now,
+        last_synced_at=datetime.now(timezone.utc),
     )
 
     items = _load()
@@ -126,7 +129,8 @@ def sync_item(name: str) -> ArbitrageItem:
         steam_price=steam_price,
         last_synced_at=datetime.now(timezone.utc),
         price_source="markets",
-        updated_at=existing.updated_at,
+        updated_at=datetime.now(timezone.utc).isoformat(),
+        created_at=existing.created_at or existing.updated_at,
     )
 
     items = _load()

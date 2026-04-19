@@ -26,7 +26,7 @@ type SortCol =
   | "name" | "wear" | "float_value"
   | "csf_price_eur" | "csf_realized_eur"
   | "steam_price_eur" | "steam_net"
-  | "item_multiplier" | "status" | "status_updated_at" | "last_synced_at";
+  | "item_multiplier" | "status" | "created_at" | "status_updated_at" | "last_synced_at";
 
 function colValue(item: CaseOpeningItem, col: SortCol): number | string {
   switch (col) {
@@ -39,6 +39,7 @@ function colValue(item: CaseOpeningItem, col: SortCol): number | string {
     case "steam_net": return item.steam_price_eur != null ? item.steam_price_eur / 1.15 : -1;
     case "item_multiplier": return item.item_multiplier ?? -1;
     case "status": return item.status;
+    case "created_at": return item.created_at ?? "";
     case "status_updated_at": return item.status_updated_at ?? "";
     case "last_synced_at": return item.last_synced_at ?? "";
   }
@@ -278,6 +279,9 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
         </button>
       </td>
       <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
+        {item.created_at ? relativeTime(item.created_at) : "—"}
+      </td>
+      <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
         {relativeTime(item.status_updated_at)}
       </td>
       <td className="px-2 py-1.5 text-right text-zinc-500 text-[11px] whitespace-nowrap">
@@ -472,7 +476,8 @@ export default function CaseOpeningDetail() {
                 {thSort(`Steam Net`, "steam_net")}
                 {thSort("Mult", "item_multiplier")}
                 {thSort("Status", "status")}
-                {thSort("Timestamp", "status_updated_at")}
+                {thSort("Added", "created_at")}
+                {thSort("Last Updated", "status_updated_at")}
                 {thSort("Synced", "last_synced_at")}
                 <th className="px-2 py-2" />
               </tr>
