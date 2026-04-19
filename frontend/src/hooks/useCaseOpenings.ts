@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef, useState } from "react";
 import {
   addCaseOpeningItem,
   createCaseOpening,
@@ -9,8 +10,9 @@ import {
   syncCaseOpening,
   syncCaseOpeningItem,
   updateCaseOpening,
+  updateCaseOpeningItemStatus,
 } from "../api/caseOpenings";
-import type { CaseOpeningCreate, CaseOpeningItemInput, CaseOpeningPatch } from "../types/api";
+import type { CaseOpeningCreate, CaseOpeningItemInput, CaseOpeningPatch, ItemMarketplace, ItemStatus } from "../types/api";
 import { queryKeys } from "./queryKeys";
 
 export function useCaseOpenings() {
@@ -74,15 +76,34 @@ export function useSyncCaseOpeningItem(sessionId: string) {
 
 export function useSyncCaseOpening(sessionId: string) {
   const qc = useQueryClient();
-  return useMutation({
+  const [isSyncing, setIsSyncing] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const mutation = useMutation({
     mutationFn: () => syncCaseOpening(sessionId),
     onSuccess: () => {
+      setIsSyncing(true);
       let ticks = 0;
-      const interval = setInterval(() => {
+      intervalRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: queryKeys.caseOpening(sessionId) });
         ticks++;
-        if (ticks >= 15) clearInterval(interval);
+        if (ticks >= 15) {
+          clearInterval(intervalRef.current!);
+          setIsSyncing(false);
+        }
       }, 4_000);
     },
+    onError: () => setIsSyncing(false),
+  });
+
+  return { ...mutation, isSyncing: isSyncing || mutation.isPending };
+}
+
+export function useUpdateCaseOpeningItemStatus(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ itemId, status, marketplace }: { itemId: string; status: ItemStatus; marketplace: ItemMarketplace | null }) =>
+      updateCaseOpeningItemStatus(sessionId, itemId, status, marketplace),
+    onSuccess: (updated) => qc.setQueryData(queryKeys.caseOpening(sessionId), updated),
   });
 }

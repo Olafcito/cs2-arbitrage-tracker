@@ -6,6 +6,7 @@ from src.models.case_opening import (
     CaseOpening,
     CaseOpeningCreate,
     CaseOpeningItemInput,
+    CaseOpeningItemStatusPatch,
     CaseOpeningPatch,
     CaseOpeningSummary,
 )
@@ -77,6 +78,15 @@ def sync_item(session_id: str, index: int) -> CaseOpening:
         raise HTTPException(status_code=429, detail=str(e))
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found or index out of range")
+    return session
+
+
+@router.patch("/{session_id}/items/{item_id}/status", response_model=CaseOpening)
+def update_item_status(session_id: str, item_id: str, patch: CaseOpeningItemStatusPatch) -> CaseOpening:
+    """Update status and marketplace for a specific item. Appends to status history."""
+    session = svc.update_item_status(session_id, item_id, patch)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session or item not found")
     return session
 
 
