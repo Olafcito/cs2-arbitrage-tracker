@@ -36,7 +36,7 @@ cp .env.example .env
 |----------|-----------------|
 | `CSFLOAT_API_KEY` | [csfloat.com/profile](https://csfloat.com/profile) → Developer tab |
 | `steamwebapi_key` | [steamwebapi.com](https://www.steamwebapi.com) → account dashboard |
-| `steam_id` | Your 64-bit Steam ID (e.g. `76561198023394152`) |
+| `steam_id` | Your 64-bit Steam ID |
 
 The app runs without a CSFloat key — live price syncing falls back to CSROI data.
 
