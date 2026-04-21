@@ -71,8 +71,8 @@ function rarityColor(rarity: number | null): string | undefined {
 
 function multiplierColor(m: number | null) {
   if (m == null) return "text-zinc-500";
-  if (m >= 1.2) return "text-emerald-400 font-semibold";
-  if (m >= 1.0) return "text-amber-400";
+  if (m >= 1.4) return "text-emerald-400";
+  if (m >= 1.3) return "text-amber-400";
   return "text-red-400";
 }
 
@@ -295,7 +295,20 @@ function ItemEditModal({ item, sessionId, onClose }: {
             <label className="text-[11px] text-zinc-500">Status</label>
             <select
               value={status}
-              onChange={(e) => setStatus(e.target.value as ItemStatus)}
+              onChange={(e) => {
+                const newStatus = e.target.value as ItemStatus;
+                setStatus(newStatus);
+                // When switching to for_sale from another status, suggest marketplace + price
+                if (newStatus === "for_sale" && item.status !== "for_sale") {
+                  if ((item.item_multiplier ?? 0) >= 1.4) {
+                    setMarketplace("steam");
+                    setSalePrice(item.steam_price_eur?.toFixed(2) ?? "");
+                  } else {
+                    setMarketplace("csfloat");
+                    setSalePrice(item.csf_price_eur?.toFixed(2) ?? "");
+                  }
+                }
+              }}
               className={`bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs focus:outline-none focus:border-zinc-500 ${statusColor(status)}`}
             >
               {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}
