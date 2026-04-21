@@ -1,22 +1,50 @@
-Commit and push these changes. Update readme so know how to run this.
-
-Now some features that requires you to first go into planning then you can execute one at a time, with both FE & BE being updated. 
-I review commit and push after:
-- I want a sync button for whatever is pulling from csroi.  So That goes for Deals and Cases in the top of it. Cant do that for Steam of course. I assume that was the refresh button does for Deals as well?
-- For all items I want a sync button that pulls newest data for each item.  That requieres that also build the CSFloat endpoint We dont have the csfloat endpoint setup right ? or do we ?  I would need to configure API_key somewhere, so consider that. You would likely need to look at documentation. WE should be able to search for items by name, wear and preferably float so the price is for the nearest higher-float item, OR just minimum price if csfloat api allows for that. I want to know for every item when they were last synced and if it was from CSROI or markets(csfloat + steam). So like there is item tracker from when they were added, it should replace that. This should be available both on markets and in the items part of it.  I would like the sync button in the ui to be between the delete(trash logo). I want a sync button for item groups as well, but should keep to the strict rate limits 1 rq per 3 seconds but I think that is already enforced in clients/steam.py, but when sync all it should just go slowly down while spinning and doing one at a time. If I ever hit "You've made too many requests recently. Please wait and try your request again later." I need to be notified of that !
-- Minor deals prices need to be in eur not usd in deals. ALso we have both steam eur and low eur, so how do you get that price? Lets just have  one field.
-- We need to have a safety measure so we are sure we dont hit the steam api too often, should be handled in backend and give an error if I try to sync when it is being reached. Set it conservatively. If I go for sync all button for all 
-- Have item groups, I need CRUD for that.
-- Rework Scenario (more components is coming later), but make a pane called case openings for now where I can add a case openings with name + date. Add in items (you can use the items steam +csfloat ). What will be there is Item. Also need sync all here ofc.
-But What I need here is: Items | Wear | Float |CSFOAT PRICE | Steam Price | Steam Net | ROI CSFLOAT | ROI STEAM | ROI CSFloat Multiplied. These are for each field, and should be summarized in top. Make this as table as well same look as the other tables. 
-There should be a Cases sum (that is a count of all items, I shouldnt be able to change that that changes everytime I update an item). I need a field where I write Case + key price in top that determines how ROIs are calculated, as well as a multiplier field.
-
-Steam net is calculated as Steam Price/1.15
-CSFloat Roi is calculated as (sum of all CSFLOAT price items*0.98)/(Case+key price), with 0.98 being the CSFloat sell fee. 
-ROI Steam is calculated as Steam Net/(Cases opened*Case + key price)
-
-Case + key price is probably just lets name that something else Like Unbox Price.
-Lastly ROI CSFLoat multiplied is calculated as ROI CSFLOAT*Multiplier.
+## Personal
+- Figure out how I ended up with 7 extra cases. See how many cases was sold on steam market, see how many was purchased
 
 
-This is a little over the place, but go into planning figure out how to build these components, how the order should be and where/if/how in FE and BE. Break it down, so we make incremental changes that support one business logic.
+
+
+
+## NExt
+- Add total cases to Case Open scenarios, and how many I have used/how many I have in total.
+- Fix the inventory sync there has already been 2 rq
+- In Frontend Multiplier should be green < 1.4 < orange > 1.3 Red
+- Add ability to sell, when solid price should be fixed, and not updated as sync. Perhaps move to scenarios at given price.
+- Steam inventory doesnt pull all lof it, perhaps only tradeable items? BUt I do know that I am missing a bunch of items, including all of my cases. I dont know if there is pagenation or limits or what not. Steam_login_secure: Your Steam login cookie for fetching your own inventory WITHOUT the 10-day trade block. When provided, `steam_id` is ignored. Find this cookie in your browser dev tools under "steamLoginSecure". This might fix! with_no_tradable=1 could also. https://www.steamwebapi.com/api/steam/documentation#get-/steam/api/inventory
+
+- The USD/Eur thing doesnt work it doesnt change it from euro to US when I click it around. Expected behaviour:
+    - Values are changed from Euro TO USD. We replace EUR from all column names because we have Euro signs in the text. I dont know if we need to dos some structural changes if the prices are written in currency in our actual data? Like then we might have to change the datamodels/schema for that. Could be complicated we do have the exchange rate endpoint, but we get steam prices in eur and CSF in USD..
+- See if I can get a repository of all steam names that are available, perhaps cached in frontend. One issue that would solve would be for example some have capitalized names like MAC-10 not Mac-10 so when I start typing I get a "recommendation". 
+- Remove the cutting down of values in backend, only do so in f/e
+
+
+
+
+## Big features
+
+- Look into the calculations for openings, do that in relations to scenario when we have the bigger calculations
+- Refactor scenarios when we get there still WIP and serves mostly as a placeholder
+    - I need to have all of those like key prices nad money spent and such.
+
+- Build database.
+- Groups is WIP, 
+- Add cache to frontend
+- Add selling
+
+
+
+
+## Refacotring
+- I was told FastAPI was designed from the ground up to favor functions. While you can use Class-Based Views (CBV), the framework’s core feature—Dependency Injection—is built around the Depends() function. Please tell me why, educated me and pro /cons of each.
+- Add Steam_net to backend and retrieve that in the frontend do not do the calculation there.
+- Calculations in top of case openings: I wanna know how this is calculated and where. Seems to be calculated by _compute_rois, I wonder if this should be done in frontend or backend? I think this is a little entertangled as well with the local file savngs, so that might be refactored when database is added.
+- Theres some interdependencies for CSFloat listings, both fest listings and fetch listings data I think one would be sufficient. Seems params is mostly related to get those filterings, we should be able to just do that directly from get_listigs and then call that from sync_item
+
+- Refactor out the market hash names. I want an utils that generates a market hash name from Weapon name + Condition + ST(If) 
+- The idx in case opens should be refactored, instead we do different type of search or something. Perhaps this will be changed when we make a database. Would make it easier to use the swagger links.
+- Add more informative error handling.
+- Put all endpoints under items instead.
+    - So we have one items instead, and the items pane can be called washlist where I can just add/remove items. Then we have scnearios 
+
+- Unittest for all endpoints
+    Maybes: - Make async IF Needed

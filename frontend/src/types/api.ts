@@ -133,6 +133,8 @@ export interface StatusEvent {
   status: ItemStatus;
   marketplace: ItemMarketplace | null;
   sale_price: number | null;
+  csf_price_eur: number | null;
+  steam_price_eur: number | null;
   changed_at: string;
 }
 
@@ -165,6 +167,8 @@ export interface CaseOpening {
   multiplier: number;
   items: CaseOpeningItem[];
   created_at: string;
+  steam_balance_start: number | null;
+  csf_balance_start: number | null;
   csf_roi: number | null;
   steam_roi: number | null;
   csf_roi_multiplied: number | null;
@@ -196,6 +200,8 @@ export interface CaseOpeningPatch {
   date?: string;
   unbox_price?: number;
   multiplier?: number;
+  steam_balance_start?: number | null;
+  csf_balance_start?: number | null;
 }
 
 export interface CaseOpeningItemInput {
