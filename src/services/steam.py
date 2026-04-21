@@ -15,7 +15,7 @@ _PRICE_RE = re.compile(r"[\d]+[.,][\d]+")
 # Rate limiter: max 20 requests per 60 seconds
 # ---------------------------------------------------------------------------
 
-MAX_REQUESTS_PER_MINUTE = 20
+MAX_REQUESTS_PER_MINUTE = 10
 _request_times: deque[float] = deque(maxlen=MAX_REQUESTS_PER_MINUTE)
 
 
@@ -73,6 +73,13 @@ def fetch_price_overview(market_hash_name: str) -> SteamPrice:
         name=requests.utils.quote(market_hash_name)
     )
     resp = requests.get(url, timeout=10)
+
+    # 429 and 503 both mean Steam is throttling/blocking — treat as hard rate limit
+    if resp.status_code in (429, 503):
+        raise SteamRateLimitError(
+            f"Steam blocked request (HTTP {resp.status_code}) — back off and retry later"
+        )
+
     resp.raise_for_status()
 
     content_type = resp.headers.get("content-type", "")
