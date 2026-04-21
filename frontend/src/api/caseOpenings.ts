@@ -3,6 +3,7 @@ import type {
   CaseOpening,
   CaseOpeningCreate,
   CaseOpeningItemInput,
+  CaseOpeningItemStatusPatch,
   CaseOpeningPatch,
   CaseOpeningSummary,
 } from "../types/api";
@@ -35,10 +36,9 @@ export const updateCaseOpeningItem = (
 export const updateCaseOpeningItemStatus = (
   sessionId: string,
   itemId: string,
-  status: string,
-  marketplace: string | null,
+  patch: CaseOpeningItemStatusPatch,
 ) =>
-  api.patch<import("../types/api").CaseOpening>(
+  api.patch<CaseOpening>(
     `/case-openings/${sessionId}/items/${itemId}/status`,
-    { status, marketplace },
+    patch,
   );

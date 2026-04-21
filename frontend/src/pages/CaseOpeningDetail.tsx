@@ -17,7 +17,7 @@ import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import StatCard from "../components/ui/StatCard";
 import { fmt, relativeTime } from "../utils/format";
-import type { CaseOpeningItem, ItemMarketplace, ItemStatus } from "../types/api";
+import type { CaseOpeningItem, CaseOpeningItemStatusPatch, ItemStatus } from "../types/api";
 
 const WEAR_OPTIONS = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
 const STATUS_OPTIONS: ItemStatus[] = ["opened", "for_sale", "delisted", "sold"];
@@ -196,15 +196,21 @@ function ItemEditModal({ item, sessionId, onClose }: {
   const [floatVal, setFloatVal] = useState(item.float_value?.toString() ?? "");
   const [stattrak, setStattrak] = useState(item.stattrak);
   const [status, setStatus] = useState<ItemStatus>(item.status);
-  const [marketplace, setMarketplace] = useState<ItemMarketplace | "">(item.marketplace ?? "");
+  const [marketplace, setMarketplace] = useState<string>(item.marketplace ?? "");
+  const [salePrice, setSalePrice] = useState(item.sale_price?.toString() ?? "");
 
   const updateItem = useUpdateCaseOpeningItem(sessionId);
   const updateStatus = useUpdateCaseOpeningItemStatus(sessionId);
   const isPending = updateItem.isPending || updateStatus.isPending;
 
+  const showSalePrice = status === "for_sale" || status === "sold";
+
   const propsChanged = name !== item.name || wear !== item.wear || stattrak !== item.stattrak ||
     (floatVal !== "" ? parseFloat(floatVal) !== item.float_value : item.float_value != null);
-  const statusChanged = status !== item.status || (marketplace || null) !== (item.marketplace ?? null);
+  const parsedSalePrice = salePrice !== "" ? parseFloat(salePrice) : null;
+  const statusChanged = status !== item.status
+    || (marketplace || null) !== (item.marketplace ?? null)
+    || parsedSalePrice !== (item.sale_price ?? null);
 
   const handleSave = async () => {
     try {
@@ -220,11 +226,12 @@ function ItemEditModal({ item, sessionId, onClose }: {
         });
       }
       if (statusChanged) {
-        await updateStatus.mutateAsync({
-          itemId: item.id,
+        const patch: CaseOpeningItemStatusPatch = {
           status,
           marketplace: marketplace || null,
-        });
+          sale_price: showSalePrice ? parsedSalePrice : null,
+        };
+        await updateStatus.mutateAsync({ itemId: item.id, patch });
       }
       onClose();
     } catch {
@@ -298,7 +305,7 @@ function ItemEditModal({ item, sessionId, onClose }: {
             <label className="text-[11px] text-zinc-500">Marketplace</label>
             <select
               value={marketplace}
-              onChange={(e) => setMarketplace(e.target.value as ItemMarketplace | "")}
+              onChange={(e) => setMarketplace(e.target.value)}
               className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-400 focus:outline-none focus:border-zinc-500"
             >
               <option value="">—</option>
@@ -307,6 +314,21 @@ function ItemEditModal({ item, sessionId, onClose }: {
             </select>
           </div>
         </div>
+
+        {showSalePrice && (
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] text-zinc-500">Sale price (€)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+              placeholder="0.00"
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            />
+          </div>
+        )}
 
         {(updateItem.isError || updateStatus.isError) && (
           <p className="text-xs text-red-400">Save failed — check backend logs.</p>
@@ -332,13 +354,13 @@ function ItemEditModal({ item, sessionId, onClose }: {
   );
 }
 
-function ItemSyncButton({ sessionId, index }: { sessionId: string; index: number }) {
+function ItemSyncButton({ sessionId, index, sold }: { sessionId: string; index: number; sold?: boolean }) {
   const { mutate, isPending } = useSyncCaseOpeningItem(sessionId);
   return (
     <button
       onClick={() => mutate(index)}
-      disabled={isPending}
-      title="Sync prices"
+      disabled={isPending || sold}
+      title={sold ? "Item is sold — sync frozen" : "Sync prices"}
       className="p-1 text-zinc-600 hover:text-emerald-400 disabled:opacity-40 transition-colors"
     >
       <RefreshCw size={11} className={isPending ? "animate-spin" : ""} />
@@ -400,8 +422,11 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
           className={`text-[11px] whitespace-nowrap leading-none ${statusColor(item.status)}`}
         >
           {item.status.replace("_", " ")}
-          {item.marketplace && (
-            <span className="block text-zinc-500 text-[10px]">{item.marketplace}</span>
+          {(item.marketplace || item.sale_price != null) && (
+            <span className="block text-zinc-500 text-[10px]">
+              {item.marketplace ?? ""}
+              {item.sale_price != null && ` · €${item.sale_price.toFixed(2)}`}
+            </span>
           )}
         </button>
       </td>
@@ -421,7 +446,7 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
       </td>
       <td className="px-2 py-1.5 text-center">
         <div className="flex items-center justify-center gap-0.5">
-          <ItemSyncButton sessionId={sessionId} index={originalIndex} />
+          <ItemSyncButton sessionId={sessionId} index={originalIndex} sold={item.status === "sold"} />
           <ItemDeleteButton sessionId={sessionId} index={originalIndex} />
         </div>
       </td>
@@ -447,6 +472,10 @@ export default function CaseOpeningDetail() {
   const [editingItem, setEditingItem] = useState<CaseOpeningItem | null>(null);
   const [addingItem, setAddingItem] = useState(false);
 
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [editingDate, setEditingDate] = useState(false);
+  const [dateDraft, setDateDraft] = useState("");
   const [editingUnbox, setEditingUnbox] = useState(false);
   const [editingMult, setEditingMult] = useState(false);
   const [unboxDraft, setUnboxDraft] = useState("");
@@ -489,9 +518,54 @@ export default function CaseOpeningDetail() {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-sm font-bold text-zinc-100">{session.name}</h1>
+        {editingName ? (
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            if (nameDraft.trim()) updateSession.mutate({ name: nameDraft.trim() });
+            setEditingName(false);
+          }} className="flex items-center gap-1">
+            <input
+              autoFocus
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              className="bg-zinc-800 border border-zinc-600 rounded px-2 py-0.5 text-sm font-bold text-zinc-100 focus:outline-none w-48"
+            />
+            <button type="submit" className="text-emerald-400 hover:text-emerald-300 text-sm">✓</button>
+            <button type="button" onClick={() => setEditingName(false)} className="text-zinc-500 hover:text-zinc-300 text-sm">✕</button>
+          </form>
+        ) : (
+          <button
+            onClick={() => { setNameDraft(session.name); setEditingName(true); }}
+            className="text-sm font-bold text-zinc-100 hover:text-emerald-400 transition-colors text-left"
+          >
+            {session.name}
+          </button>
+        )}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-500">{session.date}</span>
+          {editingDate ? (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (dateDraft) updateSession.mutate({ date: dateDraft });
+              setEditingDate(false);
+            }} className="flex items-center gap-1">
+              <input
+                autoFocus
+                type="date"
+                value={dateDraft}
+                onChange={(e) => setDateDraft(e.target.value)}
+                className="bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none"
+              />
+              <button type="submit" className="text-emerald-400 hover:text-emerald-300 text-xs">✓</button>
+              <button type="button" onClick={() => setEditingDate(false)} className="text-zinc-500 hover:text-zinc-300 text-xs">✕</button>
+            </form>
+          ) : (
+            <button
+              onClick={() => { setDateDraft(session.date); setEditingDate(true); }}
+              className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+            >
+              {session.date}
+            </button>
+          )}
           <button
             onClick={() => setAddingItem(true)}
             className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded border border-emerald-700 bg-emerald-900/30 text-emerald-400 hover:bg-emerald-800/40 hover:text-emerald-300 transition-colors"
