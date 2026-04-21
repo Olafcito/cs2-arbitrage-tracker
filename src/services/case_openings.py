@@ -337,18 +337,40 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     return _compute_rois(updated)
 
 
+_SYNC_DELAY_SECONDS = 5  # minimum delay between items; global rate limiter caps at 10/min
+_MAX_CONSECUTIVE_FAILURES = 2  # stop background sync after this many consecutive Steam errors
+
+
 def sync_session_background(session_id: str) -> None:
     session = _load(session_id)
     if session is None:
         return
-    logger.info("Background sync started for session %s (%d items)", session_id, len(session.items))
-    for i in range(len(session.items)):
+    n = len(session.items)
+    logger.info(
+        "Background sync started for session %s (%d items, ~%ds estimated)",
+        session_id, n, n * _SYNC_DELAY_SECONDS,
+    )
+    consecutive_failures = 0
+    for i in range(n):
         try:
             sync_item(session_id, i)
-        except SteamRateLimitError:
-            logger.warning("Steam rate limit hit during background sync — stopping at index %d", i)
+            consecutive_failures = 0
+        except SteamRateLimitError as exc:
+            logger.warning(
+                "Steam rate limit/block at item %d — aborting background sync: %s", i, exc
+            )
             break
         except Exception as exc:
-            logger.warning("Sync failed for item index %d in session %s: %s", i, session_id, exc)
-        time.sleep(3)
+            consecutive_failures += 1
+            logger.warning(
+                "Sync failed for item index %d in session %s (%d consecutive): %s",
+                i, session_id, consecutive_failures, exc,
+            )
+            if consecutive_failures >= _MAX_CONSECUTIVE_FAILURES:
+                logger.warning(
+                    "%d consecutive failures — aborting background sync for session %s",
+                    consecutive_failures, session_id,
+                )
+                break
+        time.sleep(_SYNC_DELAY_SECONDS)
     logger.info("Background sync finished for session %s", session_id)
