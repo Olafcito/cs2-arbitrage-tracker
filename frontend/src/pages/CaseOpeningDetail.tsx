@@ -360,7 +360,7 @@ function ItemSyncButton({ sessionId, index, sold }: { sessionId: string; index: 
     <button
       onClick={() => mutate(index)}
       disabled={isPending || sold}
-      title={sold ? "Item is sold — sync frozen" : "Sync prices"}
+      title={sold ? "Sold — prices locked" : "Sync prices"}
       className="p-1 text-zinc-600 hover:text-emerald-400 disabled:opacity-40 transition-colors"
     >
       <RefreshCw size={11} className={isPending ? "animate-spin" : ""} />
@@ -386,7 +386,23 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
   symbol: string; cv: (v: number | null | undefined) => number | null;
   onEdit: (item: CaseOpeningItem) => void;
 }) {
-  const steamNet = item.steam_price_eur != null ? item.steam_price_eur / 1.15 : null;
+  const isSold = item.status === "sold";
+  const soldOnCsf = isSold && item.marketplace === "csfloat";
+  const soldOnSteam = isSold && item.marketplace === "steam";
+
+  // CSF column: sale_price if sold on CSFloat; otherwise live market (frozen at sale for sold items)
+  const displayCsfPrice = soldOnCsf && item.sale_price != null ? item.sale_price : item.csf_price_eur;
+  const csfIsSalePrice = soldOnCsf && item.sale_price != null;
+  const csfIsSnapshot = soldOnSteam; // sold on Steam → CSF shows at-sale market snapshot
+
+  // Steam column: sale_price if sold on Steam; otherwise live/snapshot market
+  const displaySteamPrice = soldOnSteam && item.sale_price != null ? item.sale_price : item.steam_price_eur;
+  const steamIsSalePrice = soldOnSteam && item.sale_price != null;
+  const steamIsSnapshot = soldOnCsf; // sold on CSFloat → Steam shows at-sale market snapshot
+
+  // Steam Net: always displaySteamPrice / 1.15
+  const steamNet = displaySteamPrice != null ? displaySteamPrice / 1.15 : null;
+
   return (
     <tr className="border-b border-zinc-800/60 hover:bg-zinc-800/30 transition-colors">
       <td className="px-2 py-1.5 max-w-[180px]">
@@ -409,10 +425,39 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
       </td>
       <td className="px-2 py-1.5 text-zinc-400 whitespace-nowrap text-xs">{item.wear}</td>
       <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{item.float_value?.toFixed(4) ?? "—"}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-300 text-xs">{fmt.cur(cv(item.csf_price_eur), symbol)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{fmt.cur(cv(item.csf_realized_eur), symbol)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-300 text-xs">{fmt.cur(cv(item.steam_price_eur), symbol)}</td>
-      <td className="px-2 py-1.5 text-right text-zinc-400 text-xs">{fmt.cur(cv(steamNet), symbol)}</td>
+
+      {/* CSF: sale_price when sold on CSFloat; at-sale market snapshot when sold on Steam */}
+      <td className="px-2 py-1.5 text-right text-xs">
+        <span className={csfIsSalePrice ? "text-zinc-300 font-medium" : csfIsSnapshot ? "text-zinc-500" : "text-zinc-300"}>
+          {fmt.cur(cv(displayCsfPrice), symbol)}
+        </span>
+        {csfIsSnapshot && <span className="block text-[9px] text-zinc-600">at sale</span>}
+      </td>
+
+      {/* Real: always CSF-based — sale_price×0.98 if sold on CSFloat, else csf_market×0.98 */}
+      <td className="px-2 py-1.5 text-right text-xs">
+        <span className={csfIsSalePrice ? "text-zinc-300" : "text-zinc-400"}>
+          {fmt.cur(cv(item.csf_realized_eur), symbol)}
+        </span>
+        {csfIsSnapshot && <span className="block text-[9px] text-zinc-600">at sale</span>}
+      </td>
+
+      {/* Steam: sale_price when sold on Steam; at-sale market snapshot when sold on CSFloat */}
+      <td className="px-2 py-1.5 text-right text-xs">
+        <span className={steamIsSalePrice ? "text-zinc-300 font-medium" : steamIsSnapshot ? "text-zinc-500" : "text-zinc-300"}>
+          {fmt.cur(cv(displaySteamPrice), symbol)}
+        </span>
+        {steamIsSnapshot && <span className="block text-[9px] text-zinc-600">at sale</span>}
+      </td>
+
+      {/* Steam Net: always displaySteamPrice / 1.15 */}
+      <td className="px-2 py-1.5 text-right text-xs">
+        <span className={steamIsSalePrice ? "text-zinc-300" : "text-zinc-400"}>
+          {fmt.cur(cv(steamNet), symbol)}
+        </span>
+        {steamIsSnapshot && <span className="block text-[9px] text-zinc-600">at sale</span>}
+      </td>
+
       <td className={`px-2 py-1.5 text-right text-xs ${multiplierColor(item.item_multiplier)}`}>
         {item.item_multiplier != null ? item.item_multiplier.toFixed(3) + "x" : "—"}
       </td>
@@ -422,11 +467,8 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
           className={`text-[11px] whitespace-nowrap leading-none ${statusColor(item.status)}`}
         >
           {item.status.replace("_", " ")}
-          {(item.marketplace || item.sale_price != null) && (
-            <span className="block text-zinc-500 text-[10px]">
-              {item.marketplace ?? ""}
-              {item.sale_price != null && ` · €${item.sale_price.toFixed(2)}`}
-            </span>
+          {item.marketplace && (
+            <span className="block text-zinc-500 text-[10px]">{item.marketplace}</span>
           )}
         </button>
       </td>
@@ -446,7 +488,7 @@ function ItemRow({ item, sessionId, originalIndex, symbol, cv, onEdit }: {
       </td>
       <td className="px-2 py-1.5 text-center">
         <div className="flex items-center justify-center gap-0.5">
-          <ItemSyncButton sessionId={sessionId} index={originalIndex} sold={item.status === "sold"} />
+          <ItemSyncButton sessionId={sessionId} index={originalIndex} sold={isSold} />
           <ItemDeleteButton sessionId={sessionId} index={originalIndex} />
         </div>
       </td>
@@ -480,6 +522,10 @@ export default function CaseOpeningDetail() {
   const [editingMult, setEditingMult] = useState(false);
   const [unboxDraft, setUnboxDraft] = useState("");
   const [multDraft, setMultDraft] = useState("");
+  const [editingSteamBal, setEditingSteamBal] = useState(false);
+  const [editingCsfBal, setEditingCsfBal] = useState(false);
+  const [steamBalDraft, setSteamBalDraft] = useState("");
+  const [csfBalDraft, setCsfBalDraft] = useState("");
 
   if (isLoading) return <div className="flex items-center gap-2 text-zinc-500 text-xs"><Spinner /> Loading…</div>;
   if (error || !session) return <ErrorBanner message={(error as Error)?.message ?? "Session not found"} />;
@@ -585,7 +631,7 @@ export default function CaseOpeningDetail() {
       </div>
 
       {/* Editable controls */}
-      <div className="flex gap-4 mb-4 text-xs">
+      <div className="flex flex-wrap gap-4 mb-4 text-xs">
         <div className="flex items-center gap-2">
           <span className="text-zinc-500">Unbox price:</span>
           {editingUnbox ? (
@@ -630,16 +676,85 @@ export default function CaseOpeningDetail() {
             </button>
           )}
         </div>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-500">Steam start:</span>
+          {editingSteamBal ? (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const v = steamBalDraft === "" ? null : parseFloat(steamBalDraft);
+              updateSession.mutate({ steam_balance_start: v });
+              setEditingSteamBal(false);
+            }} className="flex items-center gap-1">
+              <input autoFocus type="number" step="0.01" value={steamBalDraft}
+                onChange={(e) => setSteamBalDraft(e.target.value)}
+                placeholder="0.00"
+                className="w-20 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none placeholder-zinc-600" />
+              <button type="submit" className="text-emerald-400 hover:text-emerald-300">✓</button>
+              <button type="button" onClick={() => setEditingSteamBal(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+            </form>
+          ) : (
+            <button onClick={() => { setSteamBalDraft(session.steam_balance_start?.toString() ?? ""); setEditingSteamBal(true); }}
+              className="text-zinc-200 hover:text-emerald-400 transition-colors">
+              {session.steam_balance_start != null ? fmt.cur(cv(session.steam_balance_start), symbol) : <span className="text-zinc-600">—</span>}
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-500">CSFloat start:</span>
+          {editingCsfBal ? (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const v = csfBalDraft === "" ? null : parseFloat(csfBalDraft);
+              updateSession.mutate({ csf_balance_start: v });
+              setEditingCsfBal(false);
+            }} className="flex items-center gap-1">
+              <input autoFocus type="number" step="0.01" value={csfBalDraft}
+                onChange={(e) => setCsfBalDraft(e.target.value)}
+                placeholder="0.00"
+                className="w-20 bg-zinc-800 border border-zinc-600 rounded px-1.5 py-0.5 text-zinc-200 text-xs focus:outline-none placeholder-zinc-600" />
+              <button type="submit" className="text-emerald-400 hover:text-emerald-300">✓</button>
+              <button type="button" onClick={() => setEditingCsfBal(false)} className="text-zinc-500 hover:text-zinc-300">✕</button>
+            </form>
+          ) : (
+            <button onClick={() => { setCsfBalDraft(session.csf_balance_start?.toString() ?? ""); setEditingCsfBal(true); }}
+              className="text-zinc-200 hover:text-emerald-400 transition-colors">
+              {session.csf_balance_start != null ? fmt.cur(cv(session.csf_balance_start), symbol) : <span className="text-zinc-600">—</span>}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Stat cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-4">
-        <StatCard label="Items" value={String(session.items.length)} />
-        <StatCard label="CSF ROI" value={pct(session.csf_roi)} />
-        <StatCard label="Steam ROI" value={pct(session.steam_roi)} />
-        <StatCard label="CSF ROI ×Mult" value={pct(session.csf_roi_multiplied)} />
-        <StatCard label={`Total CSF (${symbol})`} value={fmt.cur(cv(session.total_csf_value), symbol)} />
-      </div>
+      {(() => {
+        const soldItems = session.items.filter((i) => i.status === "sold");
+        const csfSold = soldItems.filter((i) => i.marketplace === "csfloat");
+        const steamSold = soldItems.filter((i) => i.marketplace === "steam");
+        const totalCsfSold = csfSold.reduce((s, i) => s + (i.sale_price ?? 0) * 0.98, 0);
+        const totalSteamSold = steamSold.reduce((s, i) => s + (i.sale_price ?? 0) / 1.15, 0);
+        const csfCurrent = session.csf_balance_start != null
+          ? session.csf_balance_start + totalCsfSold
+          : null;
+        const steamCurrent = session.steam_balance_start != null
+          ? session.steam_balance_start + totalSteamSold
+          : null;
+        return (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 mb-2">
+              <StatCard label="Items" value={String(session.items.length)} />
+              <StatCard label="CSF ROI" value={pct(session.csf_roi)} />
+              <StatCard label="Steam ROI" value={pct(session.steam_roi)} />
+              <StatCard label="CSF ROI ×Mult" value={pct(session.csf_roi_multiplied)} />
+              <StatCard label={`Total Net (${symbol})`} value={fmt.cur(cv(session.total_csf_value), symbol)} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+              <StatCard label={`Sold CSFloat (${symbol})`} value={csfSold.length > 0 ? fmt.cur(cv(totalCsfSold), symbol) : "—"} />
+              <StatCard label={`Sold Steam (${symbol})`} value={steamSold.length > 0 ? fmt.cur(cv(totalSteamSold), symbol) : "—"} />
+              <StatCard label={`CSFloat bal (${symbol})`} value={csfCurrent != null ? fmt.cur(cv(csfCurrent), symbol) : "—"} />
+              <StatCard label={`Steam bal (${symbol})`} value={steamCurrent != null ? fmt.cur(cv(steamCurrent), symbol) : "—"} />
+            </div>
+          </>
+        );
+      })()}
 
       {rateLimitMsg && (
         <div className="mb-3">
@@ -673,7 +788,7 @@ export default function CaseOpeningDetail() {
                 {thSort("Float", "float_value")}
                 {thSort(`CSF`, "csf_price_eur")}
                 {thSort(`Real`, "csf_realized_eur")}
-                {thSort(`Steam Med`, "steam_price_eur")}
+                {thSort(`Steam`, "steam_price_eur")}
                 {thSort(`Steam Net`, "steam_net")}
                 {thSort("Mult", "item_multiplier")}
                 {thSort("Status", "status")}

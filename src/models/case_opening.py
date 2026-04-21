@@ -19,6 +19,8 @@ class StatusEvent(ArbitrageBase):
     status: ItemStatus
     marketplace: ItemMarketplace | None = None
     sale_price: float | None = None
+    csf_price_eur: float | None = None    # market snapshot at time of event
+    steam_price_eur: float | None = None  # steam median snapshot at time of event
     changed_at: datetime
 
 
@@ -59,6 +61,10 @@ class CaseOpening(ArbitrageBase):
     created_at: datetime
     last_event_at: datetime
 
+    # Optional starting account balances for P&L tracking
+    steam_balance_start: float | None = None
+    csf_balance_start: float | None = None
+
     # Computed on read
     csf_roi: float | None = None
     steam_roi: float | None = None
@@ -91,6 +97,8 @@ class CaseOpeningPatch(BaseModel):
     date: dt.date | None = None
     unbox_price: float | None = None
     multiplier: float | None = None
+    steam_balance_start: float | None = None
+    csf_balance_start: float | None = None
 
 
 class CaseOpeningItemInput(BaseModel):

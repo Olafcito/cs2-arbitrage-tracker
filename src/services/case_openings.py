@@ -40,11 +40,21 @@ def _path(session_id: str):
 
 def _compute_item_fields(item: CaseOpeningItem) -> CaseOpeningItem:
     """Compute derived per-item fields from stored prices."""
-    csf_realized = item.csf_price_eur * _CSF_SELLER_FEE if item.csf_price_eur is not None else None
-    if csf_realized is not None and item.steam_price_eur is not None and csf_realized > 0:
-        item_mult = (item.steam_price_eur / _STEAM_FEE_DIVISOR) / csf_realized
+    # Real = always CSF-based: sale_price × fee if sold on CSFloat, else market × fee
+    if item.sale_price is not None and item.marketplace == "csfloat":
+        csf_realized = item.sale_price * _CSF_SELLER_FEE
+    elif item.csf_price_eur is not None:
+        csf_realized = item.csf_price_eur * _CSF_SELLER_FEE
+    else:
+        csf_realized = None
+
+    # Multiplier is always market-based so it remains meaningful regardless of sale price
+    market_csf_net = item.csf_price_eur * _CSF_SELLER_FEE if item.csf_price_eur is not None else None
+    if market_csf_net is not None and market_csf_net > 0 and item.steam_price_eur is not None:
+        item_mult = (item.steam_price_eur / _STEAM_FEE_DIVISOR) / market_csf_net
     else:
         item_mult = None
+
     return item.model_copy(update={
         "csf_realized_eur": csf_realized,
         "item_multiplier": item_mult,
@@ -148,7 +158,7 @@ def update_session(session_id: str, patch: CaseOpeningPatch) -> CaseOpening | No
     session = _load(session_id)
     if session is None:
         return None
-    updates = {k: v for k, v in patch.model_dump().items() if v is not None}
+    updates = patch.model_dump(exclude_unset=True)
     updated = session.model_copy(update=updates)
     _save(updated)
     return _compute_rois(updated)
@@ -229,6 +239,8 @@ def update_item_status(
         status=patch.status,
         marketplace=patch.marketplace,
         sale_price=new_sale_price,
+        csf_price_eur=item.csf_price_eur,
+        steam_price_eur=item.steam_price_eur,
         changed_at=now,
     )
     updated_item = item.model_copy(update={
@@ -294,7 +306,6 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
 
     item = session.items[index]
     if item.status == "sold":
-        logger.debug("Skipping sync for sold item '%s' in session %s", item.name, session_id)
         return _compute_rois(session)
     rate = fetch_exchange_rate()
     prefix = "StatTrak\u2122 " if item.stattrak else ""
@@ -302,16 +313,6 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
     listing = fetch_listing_data(
         market_hash_name,
         category=2 if item.stattrak else None,
-        min_float=item.float_value,
-      #  price_discount=_CSF_PRICE_DISCOUNT,
-    )
-    
-    # Fallback in cases where item has the highest float within its wear.
-    if listing is None:
-        listing = fetch_listing_data(
-            market_hash_name,
-            category=2 if item.stattrak else None,
-          #  price_discount=_CSF_PRICE_DISCOUNT,
     )
 
 
