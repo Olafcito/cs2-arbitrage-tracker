@@ -132,6 +132,7 @@ export type ItemMarketplace = "steam" | "csfloat";
 export interface StatusEvent {
   status: ItemStatus;
   marketplace: ItemMarketplace | null;
+  sale_price: number | null;
   changed_at: string;
 }
 
@@ -149,6 +150,7 @@ export interface CaseOpeningItem {
   icon_url: string | null;
   status: ItemStatus;
   marketplace: ItemMarketplace | null;
+  sale_price: number | null;
   status_updated_at: string;
   status_history: StatusEvent[];
   created_at: string | null;
@@ -201,6 +203,12 @@ export interface CaseOpeningItemInput {
   wear: string;
   float_value?: number | null;
   stattrak?: boolean;
+}
+
+export interface CaseOpeningItemStatusPatch {
+  status: ItemStatus;
+  marketplace: ItemMarketplace | null;
+  sale_price?: number | null;
 }
 
 export interface FloatInfo {

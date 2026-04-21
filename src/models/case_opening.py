@@ -18,6 +18,7 @@ ItemMarketplace = Literal["steam", "csfloat"]
 class StatusEvent(ArbitrageBase):
     status: ItemStatus
     marketplace: ItemMarketplace | None = None
+    sale_price: float | None = None
     changed_at: datetime
 
 
@@ -40,6 +41,7 @@ class CaseOpeningItem(ArbitrageBase):
     # Status lifecycle
     status: ItemStatus = "opened"
     marketplace: ItemMarketplace | None = None
+    sale_price: float | None = None
     status_updated_at: datetime = Field(default_factory=lambda: datetime.now(dt.timezone.utc))
     status_history: list[StatusEvent] = Field(default_factory=list)
 
@@ -101,6 +103,7 @@ class CaseOpeningItemInput(BaseModel):
 class CaseOpeningItemStatusPatch(BaseModel):
     status: ItemStatus
     marketplace: ItemMarketplace | None = None
+    sale_price: float | None = None
 
 
 class CaseOpeningItemPatch(BaseModel):

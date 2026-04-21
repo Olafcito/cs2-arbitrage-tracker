@@ -216,10 +216,25 @@ def update_item_status(
 
     item = session.items[idx]
     now = datetime.now(timezone.utc)
-    event = StatusEvent(status=patch.status, marketplace=patch.marketplace, changed_at=now)
+
+    # Determine the sale_price to persist on the item
+    if patch.status in ("for_sale", "sold"):
+        # Use the provided price; fall back to existing if transitioning for_sale→sold
+        new_sale_price = patch.sale_price if patch.sale_price is not None else item.sale_price
+    else:
+        # Reverting to opened/delisted clears the sale price
+        new_sale_price = None
+
+    event = StatusEvent(
+        status=patch.status,
+        marketplace=patch.marketplace,
+        sale_price=new_sale_price,
+        changed_at=now,
+    )
     updated_item = item.model_copy(update={
         "status": patch.status,
         "marketplace": patch.marketplace,
+        "sale_price": new_sale_price,
         "status_updated_at": now,
         "status_history": [*item.status_history, event],
     })
@@ -278,6 +293,9 @@ def sync_item(session_id: str, index: int) -> CaseOpening | None:
         return None
 
     item = session.items[index]
+    if item.status == "sold":
+        logger.debug("Skipping sync for sold item '%s' in session %s", item.name, session_id)
+        return _compute_rois(session)
     rate = fetch_exchange_rate()
     prefix = "StatTrak\u2122 " if item.stattrak else ""
     market_hash_name = f"{prefix}{item.name} ({item.wear})"
