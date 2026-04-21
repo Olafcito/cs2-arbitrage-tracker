@@ -13,7 +13,7 @@ import {
   updateCaseOpeningItem,
   updateCaseOpeningItemStatus,
 } from "../api/caseOpenings";
-import type { CaseOpeningCreate, CaseOpeningItemInput, CaseOpeningPatch, ItemMarketplace, ItemStatus } from "../types/api";
+import type { CaseOpeningCreate, CaseOpeningItemInput, CaseOpeningItemStatusPatch, CaseOpeningPatch } from "../types/api";
 import { queryKeys } from "./queryKeys";
 
 export function useCaseOpenings() {
@@ -112,8 +112,8 @@ export function useUpdateCaseOpeningItem(sessionId: string) {
 export function useUpdateCaseOpeningItemStatus(sessionId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ itemId, status, marketplace }: { itemId: string; status: ItemStatus; marketplace: ItemMarketplace | null }) =>
-      updateCaseOpeningItemStatus(sessionId, itemId, status, marketplace),
+    mutationFn: ({ itemId, patch }: { itemId: string; patch: CaseOpeningItemStatusPatch }) =>
+      updateCaseOpeningItemStatus(sessionId, itemId, patch),
     onSuccess: (updated) => qc.setQueryData(queryKeys.caseOpening(sessionId), updated),
   });
 }
