@@ -30,9 +30,8 @@ export const fmt = {
 };
 
 export function multiplierClass(m: number): string {
-  if (m >= 1.5) return "text-emerald-400 font-bold";
-  if (m >= 1.2) return "text-emerald-400";
-  if (m >= 1.0) return "text-amber-400";
+  if (m >= 1.4) return "text-emerald-400";
+  if (m >= 1.3) return "text-amber-400";
   return "text-red-400";
 }
 
