@@ -2,9 +2,11 @@
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
 from src.config import PROJECT_DIR
 from src.models.case_opening import (
@@ -34,7 +36,13 @@ _CSF_SELLER_FEE = 0.98
 _STEAM_FEE_DIVISOR = 1.15
 
 
-def _path(session_id: str):
+_SESSION_ID_RE = re.compile(r"^[A-Za-z0-9_-]+$")
+
+
+def _path(session_id: str) -> Path:
+    """Resolve a session file path, rejecting ids that could escape _DATA_DIR."""
+    if not _SESSION_ID_RE.fullmatch(session_id):
+        raise ValueError(f"Invalid session id: {session_id!r}")
     return _DATA_DIR / f"{session_id}.json"
 
 
@@ -88,7 +96,10 @@ def _compute_rois(session: CaseOpening) -> CaseOpening:
 
 
 def _load(session_id: str) -> CaseOpening | None:
-    p = _path(session_id)
+    try:
+        p = _path(session_id)
+    except ValueError:
+        return None
     if not p.exists():
         return None
     data = json.loads(p.read_text(encoding="utf-8"))
@@ -165,7 +176,10 @@ def update_session(session_id: str, patch: CaseOpeningPatch) -> CaseOpening | No
 
 
 def delete_session(session_id: str) -> bool:
-    p = _path(session_id)
+    try:
+        p = _path(session_id)
+    except ValueError:
+        return False
     if not p.exists():
         return False
     p.unlink()

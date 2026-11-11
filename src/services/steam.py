@@ -12,7 +12,7 @@ from src.models.steam import SteamPrice
 _PRICE_RE = re.compile(r"[\d]+[.,][\d]+")
 
 # ---------------------------------------------------------------------------
-# Rate limiter: max 20 requests per 60 seconds
+# Rate limiter: sliding window of MAX_REQUESTS_PER_MINUTE requests per 60 seconds
 # ---------------------------------------------------------------------------
 
 MAX_REQUESTS_PER_MINUTE = 10
@@ -64,7 +64,7 @@ def _parse_steam_price(raw: str | None) -> float | None:
 def fetch_price_overview(market_hash_name: str) -> SteamPrice:
     """Call Steam priceoverview for a single item.
 
-    Rate-limited to 20 requests per minute automatically.
+    Rate-limited to MAX_REQUESTS_PER_MINUTE requests per minute automatically.
     Raises SteamRateLimitError if Steam returns an HTML throttle page.
     """
     _wait_for_rate_limit()

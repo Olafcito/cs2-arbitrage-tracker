@@ -46,7 +46,7 @@ def delete_item(name: str) -> None:
 def sync_all_items(background_tasks: BackgroundTasks) -> dict:
     """Sync all tracked items in the background. Returns immediately.
 
-    Items update one at a time with 3s between Steam calls.
+    Items update one at a time, paced by the global Steam rate limiter.
     Poll GET /items to see progress.
     """
     background_tasks.add_task(_sync_all_background)

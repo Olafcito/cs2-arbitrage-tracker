@@ -6,14 +6,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.config import PROJECT_DIR
-
-logger = logging.getLogger(__name__)
 from src.models.item import ArbitrageItem, CaseType, SkinType
 from src.services.cases import find_case_by_name
 from src.services.csfloat import fetch_lowest_price as csfloat_fetch
 from src.services.deals import find_deal_by_name
 from src.services.steam import fetch_price_overview
 from src.utils import build_arbitrage_item, fetch_exchange_rate
+
+logger = logging.getLogger(__name__)
 
 _ITEMS_FILE = PROJECT_DIR / "data" / "items.json"
 

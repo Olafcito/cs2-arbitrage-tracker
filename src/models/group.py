@@ -1,7 +1,6 @@
 """Domain models for item groups."""
 
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel
 

@@ -56,10 +56,10 @@ class TestGetRateLimitStatus:
 
     def test_partial_window(self):
         now = time.time()
-        for _ in range(10):
+        for _ in range(5):
             steam_svc._request_times.append(now)
         status = steam_svc.get_rate_limit_status()
-        assert status["requests_in_window"] == 10
+        assert status["requests_in_window"] == 5
         assert status["capacity"] == steam_svc.MAX_REQUESTS_PER_MINUTE
         assert status["retry_after_seconds"] is None
 
