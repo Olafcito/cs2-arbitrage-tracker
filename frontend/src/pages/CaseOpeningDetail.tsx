@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
@@ -13,6 +13,7 @@ import {
 } from "../hooks/useCaseOpenings";
 import { useCurrency } from "../context/CurrencyContext";
 import { useExchangeRate } from "../hooks/useExchangeRate";
+import { useItems } from "../hooks/useItems";
 import Spinner from "../components/ui/Spinner";
 import ErrorBanner from "../components/ui/ErrorBanner";
 import StatCard from "../components/ui/StatCard";
@@ -98,12 +99,33 @@ function SortTh({ label, col, active, dir, onToggle, align = "text-right" }: {
   );
 }
 
-function ItemAddModal({ sessionId, onClose }: { sessionId: string; onClose: () => void }) {
+function ItemAddModal({ sessionId, onClose, sessionItemNames }: {
+  sessionId: string; onClose: () => void; sessionItemNames: string[];
+}) {
   const [name, setName] = useState("");
   const [wear, setWear] = useState("Field-Tested");
   const [floatVal, setFloatVal] = useState("");
   const [stattrak, setStattrak] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const addItem = useAddCaseOpeningItem(sessionId);
+  const { data: trackedItems } = useItems();
+
+  const suggestionPool = useMemo(() => {
+    const names = new Set<string>();
+    sessionItemNames.forEach((n) => names.add(n));
+    (trackedItems ?? []).forEach((item) => {
+      const base = item.name.replace(/\s*\([^)]+\)\s*$/, "").trim();
+      if (base) names.add(base);
+    });
+    return [...names].sort();
+  }, [sessionItemNames, trackedItems]);
+
+  const suggestions = useMemo(
+    () => name.trim()
+      ? suggestionPool.filter((n) => n.toLowerCase().includes(name.toLowerCase())).slice(0, 10)
+      : [],
+    [name, suggestionPool],
+  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,13 +144,36 @@ function ItemAddModal({ sessionId, onClose }: { sessionId: string; onClose: () =
 
         <div className="flex flex-col gap-1">
           <label className="text-[11px] text-zinc-500">Name</label>
-          <input
-            autoFocus
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="AK-47 | Redline"
-            className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-          />
+          <div className="relative">
+            <input
+              autoFocus
+              value={name}
+              onChange={(e) => { setName(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => { if (name) setShowSuggestions(true); }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              placeholder="AK-47 | Redline"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="absolute z-10 left-0 right-0 top-full mt-0.5 bg-zinc-800 border border-zinc-700 rounded shadow-lg max-h-48 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <li key={s}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        setName(s);
+                        setShowSuggestions(false);
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100 transition-colors"
+                    >
+                      {s}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -522,6 +567,10 @@ export default function CaseOpeningDetail() {
 
   const [rateLimitMsg, setRateLimitMsg] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
+  const [filterStatus, setFilterStatus] = useState<ItemStatus | "all">("all");
+  const [filterTrade, setFilterTrade] = useState<"all" | "yes" | "no">("all");
+  const [filterMinMult, setFilterMinMult] = useState("");
+  const [filterMaxMult, setFilterMaxMult] = useState("");
   const [sortCol, setSortCol] = useState<SortCol>("name");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [editingItem, setEditingItem] = useState<CaseOpeningItem | null>(null);
@@ -545,6 +594,10 @@ export default function CaseOpeningDetail() {
 
   const handleSyncAll = () => {
     setRateLimitMsg(null);
+    if (syncSession.isSyncing) {
+      syncSession.handleSync();
+      return;
+    }
     syncSession.mutate(undefined, {
       onError: (err) => {
         const e = err as { status?: number; message?: string };
@@ -559,9 +612,19 @@ export default function CaseOpeningDetail() {
   };
 
   const indexedItems = session.items.map((item, i) => ({ item, originalIndex: i }));
-  const filtered = filter
-    ? indexedItems.filter(({ item }) => item.name.toLowerCase().includes(filter.toLowerCase()))
-    : indexedItems;
+  const isTradeable = (item: CaseOpeningItem) =>
+    item.created_at ? Date.now() - new Date(item.created_at).getTime() > 7 * 24 * 60 * 60 * 1000 : false;
+  const minMult = filterMinMult !== "" ? parseFloat(filterMinMult) : null;
+  const maxMult = filterMaxMult !== "" ? parseFloat(filterMaxMult) : null;
+  const filtered = indexedItems.filter(({ item }) => {
+    if (filter && !item.name.toLowerCase().includes(filter.toLowerCase())) return false;
+    if (filterStatus !== "all" && item.status !== filterStatus) return false;
+    if (filterTrade === "yes" && !isTradeable(item)) return false;
+    if (filterTrade === "no" && isTradeable(item)) return false;
+    if (minMult !== null && !isNaN(minMult) && (item.item_multiplier == null || item.item_multiplier < minMult)) return false;
+    if (maxMult !== null && !isNaN(maxMult) && (item.item_multiplier == null || item.item_multiplier > maxMult)) return false;
+    return true;
+  });
   const sorted = [...filtered].sort((a, b) => {
     const av = colValue(a.item, sortCol);
     const bv = colValue(b.item, sortCol);
@@ -634,11 +697,14 @@ export default function CaseOpeningDetail() {
           </button>
           <button
             onClick={handleSyncAll}
-            disabled={syncSession.isSyncing}
-            className="flex items-center gap-1.5 px-2 py-1 text-xs rounded border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 disabled:opacity-40 transition-colors"
+            className={`flex items-center gap-1.5 px-2 py-1 text-xs rounded border transition-colors ${
+              syncSession.isSyncing
+                ? "border-amber-700 text-amber-400 hover:text-amber-200 hover:border-amber-500"
+                : "border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500"
+            }`}
           >
             <RefreshCw size={11} className={syncSession.isSyncing ? "animate-spin" : ""} />
-            {syncSession.isSyncing ? "Syncing…" : "Sync All"}
+            {syncSession.isSyncing ? "Cancel" : "Sync All"}
           </button>
         </div>
       </div>
@@ -757,7 +823,7 @@ export default function CaseOpeningDetail() {
               <StatCard label="CSF ROI" value={pct(session.csf_roi)} />
               <StatCard label="Steam ROI" value={pct(session.steam_roi)} />
               <StatCard label="CSF ROI ×Mult" value={pct(session.csf_roi_multiplied)} />
-              <StatCard label={`Total Net (${symbol})`} value={fmt.cur(cv(session.total_csf_value), symbol)} />
+              <StatCard label={`CSF Net (${symbol})`} value={fmt.cur(cv(session.total_csf_value), symbol)} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
               <StatCard label={`Sold CSFloat (${symbol})`} value={csfSold.length > 0 ? fmt.cur(cv(totalCsfSold), symbol) : "—"} />
@@ -777,15 +843,57 @@ export default function CaseOpeningDetail() {
 
       {/* Filter */}
       {session.items.length > 0 && (
-        <div className="mb-2">
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Filter items…"
-            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-48"
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-40"
           />
-          {filter && (
-            <span className="ml-2 text-[11px] text-zinc-500">{sorted.length} / {session.items.length}</span>
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value as ItemStatus | "all")}
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="all">All statuses</option>
+            <option value="opened">Opened</option>
+            <option value="for_sale">For Sale</option>
+            <option value="sold">Sold</option>
+            <option value="delisted">Delisted</option>
+          </select>
+          <select
+            value={filterTrade}
+            onChange={(e) => setFilterTrade(e.target.value as "all" | "yes" | "no")}
+            className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500"
+          >
+            <option value="all">All</option>
+            <option value="yes">Tradeable ✅</option>
+            <option value="no">Not tradeable ❌</option>
+          </select>
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] text-zinc-500">Mult</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={filterMinMult}
+              onChange={(e) => setFilterMinMult(e.target.value)}
+              placeholder="min"
+              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-14"
+            />
+            <span className="text-[11px] text-zinc-600">–</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={filterMaxMult}
+              onChange={(e) => setFilterMaxMult(e.target.value)}
+              placeholder="max"
+              className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 w-14"
+            />
+          </div>
+          {(filter || filterStatus !== "all" || filterTrade !== "all" || filterMinMult !== "" || filterMaxMult !== "") && (
+            <span className="text-[11px] text-zinc-500">{sorted.length} / {session.items.length}</span>
           )}
         </div>
       )}
@@ -835,7 +943,11 @@ export default function CaseOpeningDetail() {
 
       {/* Add modal */}
       {addingItem && (
-        <ItemAddModal sessionId={id!} onClose={() => setAddingItem(false)} />
+        <ItemAddModal
+          sessionId={id!}
+          onClose={() => setAddingItem(false)}
+          sessionItemNames={session.items.map((i) => i.name)}
+        />
       )}
 
       {/* Edit modal */}

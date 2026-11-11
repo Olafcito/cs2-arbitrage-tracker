@@ -1,8 +1,7 @@
 ## NExt
-- Add price history for all items so everytime I sync this is extending "db" with records if that make sense and if it isnt already done in backend. I would like to be able to view price history on items, of course items have varying float values, but I can in dashboard view item price history (updated at sync), or slice for example on skin and wear. Like all actions happening I wanna be able to track, also sales and purchases and such when we get there over time. 
+
+- Add price history for all items so everytime I sync this is extending db with records if that make sense and if it isnt already done in backend. I would like to be able to view price history on items, of course items have varying float values, but I can in dashboard view item price history (updated at sync), or slice for example on skin and wear. Like all actions happening I wanna be able to track, also sales and purchases and such when we get there over time. 
 - Add total cases to Case Open scenarios, and how many I have used/how many I have in total.
-- Fix the inventory sync there has already been 2 rq
-- In Frontend Multiplier should be green < 1.4 < orange > 1.3 Red
 - Steam inventory doesnt pull all lof it, perhaps only tradeable items? BUt I do know that I am missing a bunch of items, including all of my cases. I dont know if there is pagenation or limits or what not. Steam_login_secure: Your Steam login cookie for fetching your own inventory WITHOUT the 10-day trade block. When provided, `steam_id` is ignored. Find this cookie in your browser dev tools under "steamLoginSecure". This might fix! with_no_tradable=1 could also. https://www.steamwebapi.com/api/steam/documentation#get-/steam/api/inventory
 
 - The USD/Eur thing doesnt work it doesnt change it from euro to US when I click it around. Expected behaviour:
@@ -13,19 +12,26 @@
 
 ---
 
-## Backlog (planned, ordered easiest → hardest)
+### 00. Adjust multiplier
+- Adjust multiplier so it only considers items so it weights in only items that is sold on CSFloat, items sold on Steam wont have a multiplier. Or I dont know debate this with me!
 
-### 1. Multiplier color thresholds
-Update `multiplierClass()` in `frontend/src/utils/format.ts` and `multiplierColor()` in `CaseOpeningDetail.tsx`:
-- `>= 1.4` → green
-- `1.3–1.4` → orange
-- `< 1.3` → red
+### 0.
+- Add Jitter backoff for Steam market to avoid getting api blocked. 
+### 1. 
+Add filters to Openings -> Session. I want to filter by market, and if it is sold, not sold, etc. Keep the item name filter
+
+
+### 2. Filter ability
+Add to Sessions in openings the ability to like with csfloat start, steam start, multiplier, unbox price, have total cases. and then I want underneath a cases left Cases-items. 
+    - Have the Csfloat and steam items in one box. so Steam Bal {total} (+{Sold}) and same for csfloat
+
 
 ### 2. Steam inventory: fetch all items including non-tradeable
-Pass `with_no_tradable: 1` in the inventory API call. Add `STEAM_LOGIN_SECURE` env var support — when set, use cookie auth (bypasses 10-day restriction) instead of `steam_id`. Files: `src/services/inventory.py`, `src/config.py`, `.env.sample`.
+- Replace with official Steam inventory api.
+    - Requires that we get 
+- I would like to by time be able to jsut sync from inventory instead to identify what items have been sold and which havent. Could be something running as a background task and then give me a notification in frontend and logs! 
+- Perhaps we can also access item history!
 
-### 3. USD/EUR toggle fix
-Many components call `fmt.eur(value)` directly instead of `fmt.cur(convert(value, rate), symbol)`, so the toggle changes the symbol but not the values. Audit all price-displaying pages (Deals, Cases, Scenarios, CaseOpeningDetail, CaseOpenings) and replace hardcoded `fmt.eur()` with the currency-aware pattern.
 
 ### 4. Autocomplete for item name inputs
 Build a reusable `Combobox` component in `frontend/src/components/ui/Combobox.tsx` (filtered dropdown, keyboard nav). Apply to the case opening add-item modal and `AddItemForm`. New backend endpoint `GET /case-openings/item-names` returns deduplicated sorted item names across all sessions.
