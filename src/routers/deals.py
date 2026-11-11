@@ -18,7 +18,7 @@ def list_deals(
 ) -> list[Deal]:
     """CSFloat items with best arbitrage ratios.
 
-    Set verify=true to cross-check against live Steam prices (rate-limited to 20/min).
+    Set verify=true to cross-check against live Steam prices (rate-limited to 10/min).
     """
     deals = scan_deals(max_ratio=max_ratio)
     if verify and deals:

@@ -65,11 +65,8 @@ uv run python -m src.main
 
 ### 2. Frontend (React)
 ```bash
-# First time only
-npm install
-```
-```bash
 cd frontend
+npm install   # first time only
 npm run dev
 # → http://localhost:5173
 ```
@@ -123,14 +120,17 @@ uv run mcp_server.py --http
 uv run pytest tests/ -v
 ```
 
-Unit tests run fully offline with mocks. Integration tests hit real APIs and are skipped by default:
+Unit tests live in `tests/unit/` and run fully offline with mocks (`pytest` defaults to that directory). Integration tests hit real APIs and must be run explicitly:
 
 ```bash
-# Steam integration
-STEAM_INTEGRATION=1 uv run pytest tests/test_steam_client.py -v -k integration
+# Steam Market (public, rate-limited)
+uv run pytest tests/integration/test_steam.py -v
 
-# CSFloat integration (requires CSFLOAT_API_KEY in .env or env)
-CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integration
+# CSFloat (requires CSFLOAT_API_KEY in .env or env)
+uv run pytest tests/integration/test_csfloat.py -v
+
+# Steam inventory via SteamWebAPI (burns one of 5 monthly calls)
+INVENTORY_INTEGRATION=1 uv run pytest tests/unit/test_inventory.py -v -k integration
 ```
 
 ---
@@ -161,7 +161,8 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | GET | `/deals` | CSFloat deals below ratio |
 | GET | `/deals?verify=true` | Deals verified against Steam (slow) |
 | GET | `/lookup?name=...` | Steam Market price lookup |
-| GET | `/csfloat/listings` | Cheapest CSFloat listing for an item |
+| GET | `/csfloat/listing` | Cheapest CSFloat listing for an item (with filters) |
+| GET | `/csfloat/listings` | Raw CSFloat listings for an item |
 | POST | `/scenarios` | Compute buy-order scenario |
 | GET | `/scenarios` | List saved scenarios |
 | GET | `/scenarios/{file}` | Load saved scenario |
@@ -183,6 +184,8 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | POST | `/case-openings/{id}/items` | Add item to session |
 | DELETE | `/case-openings/{id}/items/{index}` | Remove item from session |
 | POST | `/case-openings/{id}/items/{index}/sync` | Sync individual item prices |
+| PATCH | `/case-openings/{id}/items/{item_id}` | Edit an item's name, wear or float |
+| PATCH | `/case-openings/{id}/items/{item_id}/status` | Update item status / marketplace (appends to history) |
 | POST | `/case-openings/{id}/sync` | Sync all items in session (202) |
 
 ---
@@ -192,7 +195,7 @@ CSFLOAT_INTEGRATION=1 uv run pytest tests/test_csfloat_client.py -v -k integrati
 | Path | Contents |
 |------|----------|
 | `data/items.json` | Tracked arbitrage items |
-| `data/scenarios/` | Saved buy-order scenarios |
+| `scenarios/` | Saved buy-order scenarios |
 | `data/groups.json` | Item groups |
 | `data/case_openings/{id}.json` | Case opening sessions (one file per session) |
 | `data/inventory.json` | Last Steam inventory snapshot |

@@ -75,7 +75,7 @@ def main():
             print(f"[{i}/{total}] Added: {name} ({wear})")
         except requests.HTTPError as e:
             print(f"[{i}/{total}] FAILED: {name} ({wear}) — {e.response.status_code} {e.response.text}")
-        # Steam rate limit: 20 req/min → minimum 3s between items
+        # Steam rate limit: 10 req/min → pause between items
         time.sleep(3)
     print("Done.")
 

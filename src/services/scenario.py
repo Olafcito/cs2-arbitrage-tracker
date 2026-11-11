@@ -123,8 +123,19 @@ def list_scenarios() -> list[ScenarioSummary]:
 
 
 def load_scenario(filename: str) -> SavedScenario:
-    """Load a saved scenario by filename."""
+    """Load a saved scenario by filename.
+
+    Only bare ``*.json`` filenames inside SCENARIOS_DIR are accepted; path
+    separators or parent references are rejected to prevent traversal.
+    """
+    if (
+        not filename.endswith(".json")
+        or "/" in filename
+        or "\\" in filename
+        or ".." in filename
+    ):
+        raise FileNotFoundError(f"Scenario not found: {filename}")
     path = SCENARIOS_DIR / filename
-    if not path.exists():
+    if not path.is_file():
         raise FileNotFoundError(f"Scenario not found: {filename}")
     return SavedScenario.model_validate_json(path.read_text(encoding="utf-8"))
