@@ -80,6 +80,14 @@ export function useSyncCaseOpening(sessionId: string) {
   const [isSyncing, setIsSyncing] = useState(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const stopSyncing = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setIsSyncing(false);
+  };
+
   const mutation = useMutation({
     mutationFn: () => syncCaseOpening(sessionId),
     onSuccess: () => {
@@ -88,16 +96,18 @@ export function useSyncCaseOpening(sessionId: string) {
       intervalRef.current = setInterval(() => {
         qc.invalidateQueries({ queryKey: queryKeys.caseOpening(sessionId) });
         ticks++;
-        if (ticks >= 15) {
-          clearInterval(intervalRef.current!);
-          setIsSyncing(false);
-        }
+        if (ticks >= 15) stopSyncing();
       }, 4_000);
     },
-    onError: () => setIsSyncing(false),
+    onError: stopSyncing,
   });
 
-  return { ...mutation, isSyncing: isSyncing || mutation.isPending };
+  const handleSync = () => {
+    if (isSyncing) { stopSyncing(); return; }
+    mutation.mutate(undefined);
+  };
+
+  return { ...mutation, isSyncing: isSyncing || mutation.isPending, handleSync };
 }
 
 export function useUpdateCaseOpeningItem(sessionId: string) {
